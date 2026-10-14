@@ -429,6 +429,23 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     assert.deepEqual(call('load').settings.favoriteColors,['#ffffff'],'restore keeps favorite colors');
     assert.equal(call('load').tabs.find(t=>t.id===original).bounds.displayId,2,'restore keeps popup monitor');
     assert(fs.existsSync(path.join(root,'Overnote','backups',fromBackup.safetyFile)),'restore saves current state for undo');
+    // Automatic re-lock is opt-in, and applies only to password-protected notes.
+    const protectedNote = callFrom(restoredMain, 'add-note');
+    const protectedId = protectedNote.tabs.at(-1).id;
+    ipc.emit('update',{sender:restoredMain.webContents},protectedId,{text:'Sensitive test value stays encrypted'});
+    assert.equal(callFrom(restoredMain,'note-lock',protectedId,'my-unforgettable-secret').ok,true);
+    assert.equal(callFrom(restoredMain,'note-unlock',protectedId,'my-unforgettable-secret').ok,true);
+    assert.equal(call('load').tabs.find(n=>n.id===protectedId).unlocked,true);
+    ipc.emit('set-setting',{sender:restoredMain.webContents},'autoLockMinutes',5);
+    assert.equal(call('load').settings.autoLockMinutes,5);
+    electron.powerMonitor.emit('lock-screen');
+    assert.equal(call('load').tabs.find(n=>n.id===protectedId).unlocked,false,'Windows lock re-locks unlocked protected notes');
+    assert(!fs.readFileSync(savedPath,'utf8').includes('Sensitive test value'),'automatic locking never writes plaintext');
+    assert.equal(callFrom(restoredMain,'note-unlock',protectedId,'my-unforgettable-secret').ok,true);
+    ipc.emit('set-setting',{sender:restoredMain.webContents},'autoLockMinutes',0);
+    electron.powerMonitor.emit('lock-screen');
+    assert.equal(call('load').tabs.find(n=>n.id===protectedId).unlocked,true,'auto lock Off respects user preference');
+    assert.equal(callFrom(restoredMain,'note-relock',protectedId),true,'manual lock again always available');
     // App shutdown must never delete the current alarm just because Windows
     // closes its popup as part of exit.
     const onExit = call('set-reminder', second, tomorrow, 'none', 'Preserve on app quit', null, true);

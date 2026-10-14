@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer: ipc } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   load: () => ipc.invoke('load'),
+  userActivity: () => ipc.send('user-activity'),
   lockNote: (id,pass) => ipc.invoke('note-lock',id,pass),
   unlockNote: (id,pass) => ipc.invoke('note-unlock',id,pass),
   relockNote: id => ipc.invoke('note-relock',id),

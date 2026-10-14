@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, screen, globalShortcut, Tray, Menu, nativeI
 const path = require('path'), fs = require('fs');
 const { randomUUID } = require('crypto');
 const storage = require('./storage-tools'), security = require('./note-security'), formats = require('./note-formats'), winSticky=require('./sticky-import');
+const idleLock = require('./idle-lock');
 // Alarm sounds must start when an important reminder is due without a click.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -32,7 +33,7 @@ const defaults = {
   active: 't1',
   folders: [],
   trash: [],
-  settings: { favoriteColors: [], livePreview: true, theme: 'light', checkUpdates: true, displayId: null, opacity: 0.96, fontSize: 15, font: 'clean', onTop: true, tabWidth: 120, sideTabs: true, alarmVolume: 0.75, alarmSoundName: '', alarmSoundExt: '', backupTarget: 'local', backupCloudEnabled: false, backupLocalFolder: '', backupDriveFolder: '', backupGithubRepo: '', backupGithubBranch: 'main', backupGithubDirectory: 'overnote-backups', lastBackupAt: null, backupStatus: '', main: { x: 40, y: 40, w: 440, h: 420 } }
+  settings: { autoLockMinutes: 0, favoriteColors: [], livePreview: true, theme: 'light', checkUpdates: true, displayId: null, opacity: 0.96, fontSize: 15, font: 'clean', onTop: true, tabWidth: 120, sideTabs: true, alarmVolume: 0.75, alarmSoundName: '', alarmSoundExt: '', backupTarget: 'local', backupCloudEnabled: false, backupLocalFolder: '', backupDriveFolder: '', backupGithubRepo: '', backupGithubBranch: 'main', backupGithubDirectory: 'overnote-backups', lastBackupAt: null, backupStatus: '', main: { x: 40, y: 40, w: 440, h: 420 } }
 };
 let data = structuredClone(defaults);
 try {
@@ -49,6 +50,7 @@ try {
   const validFolderIds = new Set(data.folders.map(f => f.id));
   const s = data.settings;
   s.theme = s.theme === 'dark' ? 'dark' : 'light';
+  s.autoLockMinutes = idleLock.normalizeMinutes(s.autoLockMinutes);
   s.favoriteColors = Array.isArray(s.favoriteColors) ? [...new Set(s.favoriteColors.filter(validColor).map(normColor))].slice(0, 12) : [];
   // Former Google Drive destination is now just a local folder. Preserve the
   // previously chosen synced path so existing scheduled backups keep working.
@@ -106,6 +108,22 @@ function alarmAudio() {
   return { ...info, src: null }; // built-in chime fallback
 }
 const noteKeys = new Map(); // in-memory only; keys are never written to disk
+let lastUserActivity = Date.now();
+function markUserActivity() { lastUserActivity = Date.now(); }
+function relockAllNotes() {
+  if (!noteKeys.size) return false;
+  // Commit edits while the encryption keys are still in memory. Never persist plaintext.
+  save();
+  for (const id of noteKeys.keys()) { const n = note(id); if (n?.vault) n.text = ''; }
+  noteKeys.clear();
+  refreshAll();
+  return true;
+}
+function checkIdleLock(now = Date.now()) {
+  if (idleLock.shouldLock(data.settings.autoLockMinutes, now - lastUserActivity, noteKeys.size)) return relockAllNotes();
+  return false;
+}
+
 const save = () => {
   // Atomic replacement means a crash cannot leave notes.json half-written.
   const tmp = file + '.new';
@@ -479,6 +497,12 @@ function start() {
   checkReminders();
   powerMonitor.on('resume', checkReminders);
   powerMonitor.on('unlock-screen', checkReminders);
+  // Lock promptly on system lock/sleep if automatic locking is enabled.
+  powerMonitor.on('lock-screen', () => { if (data.settings.autoLockMinutes) relockAllNotes(); });
+  powerMonitor.on('suspend', () => { if (data.settings.autoLockMinutes) relockAllNotes(); });
+  const idleLockTimer = setInterval(checkIdleLock, 1000);
+  idleLockTimer.unref?.();
+  app.once('will-quit', () => clearInterval(idleLockTimer));
   const onDisplays = () => { placeAll(); refreshAll(); };
   screen.on('display-added', onDisplays); screen.on('display-removed', onDisplays);
 }
@@ -731,6 +755,10 @@ ipcMain.handle('backup-restore', async e => {
   } catch(err) { return {ok:false,error:err.message}; }
 });
 
+ipcMain.on('user-activity', e => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w && wins.get(windowKey(w)) === w) markUserActivity();
+});
 ipcMain.handle('load', () => { for(const n of data.tabs) if(n.vault)n.unlocked=noteKeys.has(n.id);return data; });
 // Lock/unlock are atomic: encrypted text is kept in the vault on disk.
 ipcMain.handle('note-lock', (e, id, password) => {
@@ -742,7 +770,7 @@ ipcMain.handle('note-lock', (e, id, password) => {
 ipcMain.handle('note-unlock', (e,id,password) => {
   const n=note(id),caller=BrowserWindow.fromWebContents(e.sender),k=caller&&windowKey(caller);
   if(!n?.vault||!(k==='main'||k===id))return {ok:false,error:'Note not found.'};
-  try{const decoded=security.unlockText(n.vault,password);noteKeys.set(id,decoded.key);n.text=decoded.text;refreshAll();return {ok:true};}
+  try{const decoded=security.unlockText(n.vault,password);noteKeys.set(id,decoded.key);n.text=decoded.text;markUserActivity();refreshAll();return {ok:true};}
   catch(err){return {ok:false,error:err.message};}
 });
 ipcMain.handle('note-relock', (e,id) => {const n=note(id);if(!n?.vault)return false;save();noteKeys.delete(id);n.text='';refreshAll();return true;});
@@ -1028,7 +1056,7 @@ ipcMain.handle('purge-trash', (e, id) => {
   save(); refreshAll(); return true;
 });
 ipcMain.on('set-setting', (e, k, v) => {
-  if (!['displayId', 'opacity', 'onTop', 'font', 'fontSize', 'tabWidth', 'alarmVolume', 'livePreview','theme','checkUpdates'].includes(k)) return;
+  if (!['displayId', 'opacity', 'onTop', 'font', 'fontSize', 'tabWidth', 'alarmVolume', 'livePreview','theme','checkUpdates','autoLockMinutes'].includes(k)) return;
   if (k === 'displayId') {
     const w = BrowserWindow.fromWebContents(e.sender);
     if (w) moveToDisplay(windowKey(w), v);
@@ -1036,11 +1064,12 @@ ipcMain.on('set-setting', (e, k, v) => {
   }
   if (k === 'theme') v = v === 'dark' ? 'dark' : 'light';
   if (k === 'checkUpdates') v = !!v;
+  if (k === 'autoLockMinutes') { v = idleLock.normalizeMinutes(v); markUserActivity(); }
   if (k === 'alarmVolume') v = Math.max(0, Math.min(1, Number(v) || 0));
   data.settings[k] = v; save();
   if (k === 'opacity') wins.forEach(w => w.setOpacity(v));
   if (k === 'onTop') wins.forEach(applyTop);
-  if (k === 'font' || k === 'fontSize' || k === 'tabWidth' || k === 'livePreview' || k === 'theme') refreshAll();
+  if (k === 'font' || k === 'fontSize' || k === 'tabWidth' || k === 'livePreview' || k === 'theme' || k === 'autoLockMinutes') refreshAll();
 });
 ipcMain.on('hide', hideAll);
 ipcMain.on('quit', () => app.quit());

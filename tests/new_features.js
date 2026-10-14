@@ -29,4 +29,14 @@ assert(fs.existsSync(path.join(newer,'backups','overnote-2026-10-14T10-00-00-000
 fs.writeFileSync(path.join(newer,'notes.json'),'NEW DATA');assert.deepEqual(migrateLegacy(old,newer).migrated,[]);assert.equal(fs.readFileSync(path.join(newer,'notes.json'),'utf8'),'NEW DATA');
 fs.writeFileSync(path.join(newer,'tray-error.log'),'not private');cleanTransients(newer);assert(!fs.existsSync(path.join(newer,'tray-error.log')));
 fs.rmSync(root,{recursive:true,force:true});
-console.log('New-feature tests passed: encrypted notes, wrong passwords, secure backups, migration, SQLite import, Markdown/PDF HTML and version compare.');
+const idle=require('../idle-lock');
+assert.deepEqual(idle.ALLOWED,[0,1,5,15,30,60]);
+assert.equal(idle.normalizeMinutes('15'),15);
+assert.equal(idle.normalizeMinutes('abc'),0);
+assert.equal(idle.normalizeMinutes(999),0);
+assert.equal(idle.shouldLock(0,Infinity,1),false);
+assert.equal(idle.shouldLock(1,59000,1),false);
+assert.equal(idle.shouldLock(1,60000,1),true);
+assert.equal(idle.shouldLock(15,15*60000,0),false);
+assert.equal(idle.shouldLock(15,15*60000,2),true);
+console.log('New-feature tests passed: encrypted notes, wrong passwords, secure backups, migration, SQLite import, Markdown/PDF HTML, version compare and inactivity lock policy.');

@@ -1,10 +1,19 @@
 # Overnote
 
-**Version 2.1.1:** Fixed password-protected notes covering the navigation sidebar. A locked note now covers only its editor, so you can switch to other tabs, expand folders, and use Settings without unlocking it.
+**Version 2.1.4:** Deeper, modern recessed sidebar tabs without gaps or raised-button borders. Inactive notes appear behind the active note; the selected note remains flush with the editor. Includes the 2.1.3 note-loading fix and existing privacy features.
 
 A lightweight-feeling Windows sticky-note app built with **Electron**, created by **whattherel**.
 
 **GitHub:** https://github.com/Imwhattherel/Overnote
+
+
+### Note privacy and navigation (2.1.3)
+
+- Password-protected notes display a small lock icon next to their name in the main sidebar.
+- While a password-protected note is unlocked, its editor has a **Lock again** button. This immediately re-encrypts its text and hides it.
+- **Settings → Locked note privacy → Automatically re-lock** can be Off (default), 1, 5, 15, 30, or 60 minutes. The timer is reset by interactions anywhere in Overnote, and locked notes re-lock even while the app is left in the background. With this option enabled, Windows screen lock and sleep also relock protected notes.
+- Inactive tabs have layered inset shading for stronger depth, while remaining edge-to-edge with the editor. The selected note stays clean and bright. The Settings gear has a distinct active state.
+- Locking protects note **bodies**, not sidebar titles or reminder excerpts. Keep individual note passwords safe: there is no recovery option.
 
 ## What it does
 
@@ -54,7 +63,7 @@ Or run `Build App.bat` on Windows. Electron Builder outputs installer and portab
 | `index.html` | Notes interface and responsive layouts |
 | `alarm.html`, `alarm-preload.js` | Important-reminder alarm window |
 | `backup-tools.js` | Backup and share import/export helpers |
-| `note-security.js` | Password-based authenticated note encryption |
+| `note-security.js`, `idle-lock.js` | Password-based note encryption and auto-lock timer policy |
 | `note-formats.js` | Markdown/PDF export helpers |
 | `sticky-import.js` | Read-only classic Windows Sticky Notes database importer |
 | `storage-tools.js` | Safe storage migration and temporary-file cleanup |
@@ -71,7 +80,7 @@ Right-click in the editor to open **Format selection** and **Insert into note** 
 
 ## Data location, migration, and privacy
 
-Overnote 2.1.1 stores user data at **`%APPDATA%\Overnote`**. On first launch it **copies** `notes.json`, encrypted backup credentials, the selected alarm audio, and up to 14 recent backups from the old `%APPDATA%\sticky-notes` folder. The original folder remains untouched as a manual rollback/safety copy; please **verify the new app has all your notes before manually deleting it**. Later launches do not overwrite newer Overnote data from the old folder. Chromium cache is located separately at **`%LOCALAPPDATA%\Overnote\Chromium`**. Use **Settings → Clear temporary app cache** to clear disposable cache/logs without affecting notes, passwords, alarm audio or backups.
+Overnote 2.1.4 stores user data at **`%APPDATA%\Overnote`**. On first launch it **copies** `notes.json`, encrypted backup credentials, the selected alarm audio, and up to 14 recent backups from the old `%APPDATA%\sticky-notes` folder. The original folder remains untouched as a manual rollback/safety copy; please **verify the new app has all your notes before manually deleting it**. Later launches do not overwrite newer Overnote data from the old folder. Chromium cache is located separately at **`%LOCALAPPDATA%\Overnote\Chromium`**. Use **Settings → Clear temporary app cache** to clear disposable cache/logs without affecting notes, passwords, alarm audio or backups.
 
 A note locked with a password uses **scrypt** to derive an encryption key and **AES-256-GCM** to encrypt its text. Saved JSON and automatic backups contain ciphertext, not the unlocked body. **There is no password recovery**: losing a note's password makes its content unrecoverable. Titles, folder associations, colors and reminder excerpts are **not encrypted** because Overnote uses them for the sidebar, calendar, and alarm notifications. Unlock a note before sharing or exporting it. Passwords and keys are never written into application settings.
 
@@ -116,3 +125,13 @@ Exit the old app through its tray menu, extract the ZIP to a permanent directory
 ## License
 
 This project is distributed under the [MIT License](LICENSE), copyright © 2026 whattherel. If you intended a different license, replace the LICENSE file before publishing.
+
+### 2.1.4 tab depth refinement
+
+- More pronounced *inset* shading makes inactive note tabs feel deeper and behind the selected note.
+- The active tab remains bright and joined to the note editor; no floating tab edges or chunky outlines.
+- Compact windows retain the same full-width alignment; no changes to note data, layouts, or settings.
+
+### 2.1.3 maintenance fixes
+- Fixed a malformed editor toolbar attribute that could prevent note loading in 2.1.2. No data migration is required.
+- Replaced heavy raised sidebar tabs with seamless, edge-aligned tabs; inactive notes are softly shaded to look recessed.

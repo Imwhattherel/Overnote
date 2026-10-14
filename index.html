@@ -26,10 +26,10 @@
   .folder-count { font-size:10px; opacity:.65; flex-shrink:0; }
   .folder-line { position:absolute; left:3px; right:8px; bottom:3px; border-top:2px solid var(--folder-accent,currentColor); opacity:.85; }
   .folder-color { width:9px;height:9px;border-radius:50%;background:var(--folder-accent);flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,.15) }
-  .folder-notes { display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .folder-notes { display:flex; flex-direction:column; gap:2px; min-width:0; }
   .folder-notes[hidden] { display:none; }
   .folder-empty { opacity:.5; font-size:10px; padding:5px 8px; font-style:italic; pointer-events:none; }
-  .folder-section .tab { margin-left:5px; padding-left:7px; }
+  .folder-section .tab { margin-left:0; padding-left:12px; }
   #folderEditor { margin-right:8px; display:flex; gap:3px; align-items:center; flex-wrap:wrap; }
   #folderEditor[hidden] { display:none; }
   #folderInput { flex:1; min-width:45px; width:100%; background:#fffef0; border:1px solid var(--hair); border-radius:5px; padding:5px; font:inherit; font-size:11.5px; }
@@ -54,16 +54,45 @@
   .addtab:hover { opacity:1; background:rgba(255,255,255,.25); }
   #cur { flex:1; align-self:center; padding:0 6px 0 8px; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .tab,.btn,#title { -webkit-app-region:no-drag; border:0; background:none; color:inherit; font:inherit; cursor:pointer; }
-  .tab { display:flex; align-items:center; height:30px; padding:0 10px; margin-right:8px; flex-shrink:0; font-size:12.5px; border-radius:7px 0 0 7px; background:var(--tc); color:color-mix(in srgb,var(--tc) 10%,#1d1a12); box-shadow:inset -2px 0 0 rgba(0,0,0,.14); }
+  /* Layered, edge-joined tabs: a recessed slot for inactive notes, a continuous
+     sheet for the selected note. No margins, transforms or raised button rims. */
+  .tab { display:flex; align-items:center; position:relative; width:100%; height:32px; min-width:0;
+    padding:0 10px; margin:0; flex-shrink:0; font-size:12.5px;
+    border:0; border-radius:4px 0 0 4px; opacity:1;
+    background:
+      linear-gradient(90deg,rgba(0,0,0,.035) 0%,rgba(0,0,0,.11) 48%,rgba(0,0,0,.29) 100%),
+      linear-gradient(180deg,rgba(255,255,255,.09) 0%,rgba(0,0,0,.11) 100%),
+      var(--tc);
+    box-shadow:
+      inset 0 3px 5px -4px rgba(0,0,0,.62),
+      inset 0 -2px 4px -3px rgba(0,0,0,.40),
+      inset -15px 0 18px -8px rgba(0,0,0,.65);
+    transition:background .15s,filter .15s,box-shadow .15s; }
+  /* The stronger shadow falls *inside* the right edge, preserving the flush join. */
+  .tab:not(.on)::after { content:''; position:absolute; top:0; bottom:0; right:0; width:8px;
+    background:linear-gradient(90deg,transparent,rgba(0,0,0,.16)); pointer-events:none; }
   .tab span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .tab:hover { filter:brightness(1.07); }
-  .tab.on { height:34px; margin-right:0; font-weight:600; box-shadow:none; }
+  .tab:hover:not(.on) { filter:brightness(1.09); box-shadow:inset 0 2px 4px -3px rgba(0,0,0,.45),inset -12px 0 15px -7px rgba(0,0,0,.55); }
+  .tab.on { height:34px; font-weight:700; background:var(--tc);
+    box-shadow:inset 4px 0 rgba(255,255,255,.34),inset 0 1px rgba(255,255,255,.24),0 1px 2px -2px rgba(0,0,0,.24); }
+  .tab:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+
   .pin-btn.pinned { background:rgba(255,255,255,.48);opacity:1; }
   .tab .pin-mark { margin-left:5px;flex:0 0 auto;font-size:11px;opacity:.75; }
+  .tab .lock-mark { flex:0 0 auto;margin-left:auto;padding-left:4px;width:16px;height:16px;display:grid;place-items:center;opacity:.78; }
+  .tab .lock-mark svg { width:12px;height:12px;stroke-width:2; }
+  .tab.on .lock-mark { opacity:1; }
+
   .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(0,0,0,.25); }
   .tab input,#title input { width:96px; font:inherit; font-size:12.5px; color:inherit; background:rgba(255,255,255,.6); border:0; border-radius:3px; outline:2px solid var(--ink); padding:1px 4px; }
   .btn { width:28px; height:28px; margin-bottom:3px; border-radius:6px; display:grid; place-items:center; opacity:.75; }
   .btn:hover { opacity:1; background:rgba(255,255,255,.28); } .btn:disabled { opacity:.25; pointer-events:none; }
+  /* Same gear icon in either state: the active tint and pointer tell you when open. */
+  #gear { flex-shrink:0; transition:background .16s,box-shadow .16s,opacity .16s; }
+  #gear[aria-expanded="true"] { background:rgba(255,255,255,.55); opacity:1; box-shadow:inset 0 -2px 0 currentColor; }
+  #gear[aria-expanded="true"] svg { transform:rotate(30deg); }
+  #gear svg { transition:transform .2s; }
+  #gear:focus-visible { outline:2px solid currentColor;outline-offset:-2px; }
   #repoLink { flex-shrink:0; }
   #repoLink svg { stroke-width:1.5; }
   #repoLink:focus-visible { outline:2px solid var(--ink); outline-offset:-2px; opacity:1; }
@@ -108,6 +137,14 @@
   .feature-item small {display:block;font-size:10px;opacity:.75;}
   #cloudSettings[hidden],#sharePanel[hidden],#backupLocalRow[hidden],#backupDiscordRow[hidden],#backupGithubRow[hidden] {display:none !important;}
   #editorArea { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; }
+  #unlockedBanner { display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 9px;
+    background:rgba(255,255,255,.23);border-bottom:1px solid var(--hair);font-size:11px;min-width:0; }
+  #unlockedBanner[hidden] { display:none; }
+  #unlockedBanner span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85;}
+  #relockNow {border:1px solid var(--hair);border-radius:5px;cursor:pointer;padding:4px 8px;
+    background:rgba(255,255,255,.52);color:inherit;font:inherit;font-weight:700;white-space:nowrap;flex-shrink:0;}
+  #relockNow:hover {background:rgba(255,255,255,.76);}
+
   /* The locked-note cover is positioned inside the editor, not the entire
      window: folder navigation and the title bar must remain usable. */
   #editorBody { position:relative; isolation:isolate; overflow:hidden; flex:1; min-height:0; min-width:0; display:flex; }
@@ -249,7 +286,7 @@
   @media (max-width:410px) {
     body { padding:6px; }
     #side { width:min(var(--tw,120px), 96px); padding-left:4px; }
-    .tab { padding:0 6px; margin-right:5px; }
+    .tab { padding:0 6px; margin-right:0; }
     #bar { padding-left:3px; }
     #cur { min-width:0; padding:0 2px 0 4px; }
     .btn { width:26px; height:27px; flex-shrink:0; }
@@ -336,7 +373,7 @@
     <button class="btn" id="checklist" title="Turn selected lines into a checklist (Ctrl+Shift+L)" aria-label="Toggle checklist"><svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="12" height="11" rx="2"/><path d="m4 7 2 2 3.5-4"/></svg></button>
     <button class="btn" id="eye" title="Preview markdown (Ctrl+E)"><svg viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></button>
     <button class="btn main-only" id="repoLink" type="button" title="Overnote on GitHub · Imwhattherel/Overnote" aria-label="Open Overnote GitHub repository" data-url="https://github.com/Imwhattherel/Overnote"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.65 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg></button>
-    <button class="btn main-only" id="gear" title="Settings"><svg viewBox="0 0 16 16"><path d="M2 4.5h6.5M11.5 4.5H14M2 11.5h2.5M7.5 11.5H14"/><circle cx="10" cy="4.5" r="1.5"/><circle cx="6" cy="11.5" r="1.5"/></svg></button>
+    <button class="btn main-only" id="gear" title="Open settings" aria-label="Open settings" aria-expanded="false" aria-controls="panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.1 14 3.6l.7 2.2c.4.2.8.4 1.1.6l2.2-.6 2 2-.6 2.2c.2.3.4.7.5 1.1l2.2.8v2.8l-2.2.7c-.1.4-.3.8-.5 1.1l.6 2.2-2 2-2.2-.6c-.3.2-.7.4-1.1.6l-.7 2.2H11l-.7-2.2c-.4-.2-.8-.4-1.1-.6l-2.2.6-2-2 .6-2.2c-.2-.3-.4-.7-.5-1.1l-2.2-.7v-2.8l2.2-.8c.1-.4.3-.8.5-1.1L5 7.8l2-2 2.2.6c.3-.2.7-.4 1.1-.6l.7-2.2z"/><circle cx="12" cy="12.8" r="3.1"/></svg></button>
     <button class="btn main-only" id="hide" title="Hide all notes to the system tray"><svg viewBox="0 0 16 16"><path d="M3.5 8h9"/></svg></button>
     <button class="btn pop-only pin-btn" id="pinNote" title="Pin this note above other windows" aria-label="Pin note" aria-pressed="false"><svg viewBox="0 0 16 16"><path d="m6 2 4 0-.6 3 2.4 2.4v1.2H4.2V7.4L6.6 5 6 2ZM8 8.6v5.9"/></svg></button>
     <button class="btn pop-only" id="dot" title="Note color"><span class="dot" id="dotc"></span></button>
@@ -383,6 +420,14 @@
     <label>Keep main window on top <input type="checkbox" id="onTop"></label>
     <div class="features-panel"><strong>★ Favorite colors</strong><div class="feature-help">Save colors from any note or folder's right-click color picker. Click × on a favorite below to remove it.</div><div id="favoriteSettings" class="feature-row" aria-label="Saved favorite colors"></div></div>
     <label>Start with Windows <input type="checkbox" id="startup"></label>
+    <div class="features-panel"><strong>🔒 Locked note privacy</strong>
+      <label>Automatically re-lock unlocked notes after inactivity
+        <select id="autoLockMinutes" aria-label="Automatic note lock after inactivity">
+          <option value="0">Off</option><option value="1">1 minute</option><option value="5">5 minutes</option>
+          <option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option>
+        </select></label>
+      <div class="feature-help">Applies only to password-protected notes you have unlocked. Activity anywhere in Overnote resets the timer. Also locks on Windows screen lock or sleep when enabled. Each note keeps its own password.</div>
+    </div>
     <div class="features-panel"><strong>↻ Updates from GitHub</strong>
       <label>Check for updates at startup <input id="checkUpdates" type="checkbox"></label>
       <div class="feature-buttons"><button id="checkVersion">Check now</button><button id="openReleases">Open releases ↗</button></div>
@@ -432,7 +477,7 @@
     <div style="opacity:.7;font-size:11.5px;line-height:1.45">Markdown: # title · **bold** · *italic* · ++underline++ · ~~strike~~ · - [ ] task · ==mark==<br>Ctrl+F search · Ctrl+E view/edit · Ctrl+Shift+P live Markdown · right-click editor for formatting and insertion · Ctrl+B / Ctrl+I<br>Drag tabs into folder headings to organize them, or out to pop them out. Drag a pop-out onto the main window to dock it. Pop-outs and their monitor/position return after restart. Pop-outs show only their note, without the sidebar. Highlight text and click Remind (or Ctrl+Shift+R) to create independent reminders. Delete individual reminders in the calendar or reminder panel. Double-click to switch between edit and preview.</div>
     <div class="feature-buttons"><button id="cleanStorage">Clear temporary app cache</button><span id="storageStatus" role="status"></span></div>
     <div class="feature-help">Storage: <code>%APPDATA%\Overnote</code>. On first launch, notes and settings are safely copied from the previous <code>sticky-notes</code> folder, which is left untouched. Chromium's caches are separate.</div>
-    <div style="opacity:.55;font-size:11px;text-align:right">Version 2.1.1 · MIT License</div>
+    <div style="opacity:.55;font-size:11px;text-align:right">Version 2.1.3 · MIT License</div>
     <div class="row"><button id="del">Delete this tab</button><button id="quit">Quit app</button></div>
   </div></div></div>
   <div id="passwordModal" hidden><form id="passwordCard"><strong id="passwordHeading">Note password</strong><label id="passwordInfo">Passwords are required to unlock encrypted notes.</label><input id="passwordValue" type="password" required minlength="6" autocomplete="off" placeholder="Enter password"><div id="passwordError" role="alert"></div><div class="feature-buttons"><button type="button" id="passwordCancel">Cancel</button><button type="submit" id="passwordSubmit">Continue</button></div></form></div>
@@ -445,6 +490,7 @@
       <button class="addtab" id="addfolder" title="Create a folder">＋ Folder</button>
       <div class="newtab-row"><button class="addtab" id="add" title="Create a blank note (Ctrl+T)"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>New tab</button><button class="addtab" id="addMenu" title="New tab options (including import)" aria-label="New tab options" aria-haspopup="menu" aria-expanded="false">▾</button></div></div>
     <div id="editorArea">
+      <div id="unlockedBanner" hidden role="group" aria-label="Unlocked protected note"><span>🔓 Password-protected note is unlocked</span><button type="button" id="relockNow" title="Protect this note again">🔒 Lock again</button></div>
       <div id="editingTools" role="toolbar" aria-label="Markdown editing tools">
         <button type="button" id="toolBold" title="Bold (Ctrl+B)"><b>B</b></button>
         <button type="button" id="toolItalic" title="Italic (Ctrl+I)"><i>I</i></button>
@@ -496,6 +542,13 @@ function buildTab(t, selected) {
   b.title = t.title + ' · drag to reorder, move to another folder, or pop out · double-click to rename';
   b.onpointerdown = e => tabDown(e, t);
   b.style.setProperty('--tc', t.color); b.style.color = textOn(t.color); b.innerHTML = '<span></span>'; b.querySelector('span').textContent = t.title;
+  if (t.vault) {
+    const lock = document.createElement('span'); lock.className = 'lock-mark';
+    lock.title = t.unlocked ? 'Password protected · unlocked' : 'Password protected · locked';
+    lock.setAttribute('aria-label', lock.title);
+    lock.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.5"/><path d="M5.5 7V4.7a2.5 2.5 0 0 1 5 0V7"/></svg>';
+    b.appendChild(lock);
+  }
   if (t.pinned) { const pin = document.createElement('span');pin.className='pin-mark';pin.textContent='📌';pin.title='Pinned when popped out';b.appendChild(pin); }
   const state = noteReminderStatus(t);
   if (state !== 'none' && state !== 'done') {
@@ -541,12 +594,14 @@ function render() {
       group.appendChild(contents); $('tabs').appendChild(group);
     }
     $('tabs').querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+    $('autoLockMinutes').value = String(D.settings.autoLockMinutes || 0);
     $('theme').value = D.settings.theme || 'light'; $('checkUpdates').checked = D.settings.checkUpdates !== false;
     $('opacity').value = D.settings.opacity; $('tw').value = D.settings.tabWidth || 120; $('fs').value = D.settings.fontSize; $('font').value = D.settings.font; $('onTop').checked = D.settings.onTop;
     $('alarmVolume').value = Math.round(100 * (D.settings.alarmVolume ?? .75)); $('alarmVolumeValue').textContent = $('alarmVolume').value + '%';
   }
   const ta = $('text'); if (ta.dataset.id !== n.id || ta.value !== n.text) { ta.value = n.text; ta.dataset.id = n.id; }
   const locked = !!n.vault && !n.unlocked;
+  $('unlockedBanner').hidden = !n.vault || locked;
   $('lockedScreen').hidden = !locked; if(locked){$('view').replaceChildren();$('livePreview').replaceChildren();} $('lockNote').textContent = locked ? '🔒' : (n.vault ? '🔓' : '♧');
   $('lockNote').title = locked ? 'Unlock note' : (n.vault ? 'Relock note (right-click to remove password)' : 'Add password to note');
   ta.hidden = !!n.preview || locked; $('view').hidden = !n.preview || locked; $('editingTools').hidden = !!n.preview || locked;
@@ -796,8 +851,14 @@ $('testAlarmSound').onclick = async () => {
   } catch(err) { stopAlarmPreview(); $('alarmAudioStatus').textContent = 'Could not play sound: ' + err.message; }
 };
 $('repoLink').onclick = () => api.openLink('https://github.com/Imwhattherel/Overnote');
+function syncSettingsButton() {
+  const open = $('panel').classList.contains('open');
+  $('gear').setAttribute('aria-expanded', String(open));
+  $('gear').setAttribute('aria-label', open ? 'Close settings' : 'Open settings');
+  $('gear').title = open ? 'Close settings' : 'Open settings';
+}
 $('gear').onclick = async () => {
-  $('panel').classList.toggle('open');
+  $('panel').classList.toggle('open'); syncSettingsButton();
   if ($('panel').classList.contains('open')) { $('startup').checked = await api.getStartup(); showFavoriteSettings(); updateAlarmSoundLabel(); refreshTrash(); loadBackupSettings(); }
   else stopAlarmPreview();
 };
@@ -823,6 +884,7 @@ $('fs').oninput = e => api.set('fontSize', +e.target.value);
 $('tw').oninput = e => api.set('tabWidth', +e.target.value);
 $('font').onchange = e => api.set('font', e.target.value);
 $('onTop').onchange = e => api.set('onTop', e.target.checked);
+$('autoLockMinutes').onchange = e => { const minutes=Number(e.target.value); D.settings.autoLockMinutes=minutes; api.set('autoLockMinutes',minutes); };
 $('startup').onchange = async e => { try { e.target.checked = await api.setStartup(e.target.checked); } catch (err) { alert('Could not update startup: ' + err.message); e.target.checked = await api.getStartup(); } };
 
 
@@ -1603,6 +1665,12 @@ window.addEventListener('pointerup', async e => {
 });
 window.addEventListener('pointercancel', () => { if (td && td.on) { endTabDrag(); render(); } td = null; });
 
+// Only actual input events count as activity (not polling or automatic refreshes).
+// Throttle messages for fast typing and pointer motion.
+let lastActivitySent=0;
+function sendActivity(){ const now=Date.now();if(now-lastActivitySent>1000){ lastActivitySent=now;api.userActivity?.(); } }
+for(const event of ['keydown','pointerdown','pointermove','wheel','touchstart'])
+  window.addEventListener(event,sendActivity,{passive:true,capture:true});
 api.onRefresh(refresh);
 refresh();
 
@@ -1626,6 +1694,7 @@ function lockAction(){const n=cur();if(!n)return;
   else askPassword('Unlock note','Enter your existing password.',pass=>api.unlockNote(n.id,pass));
 }
 $('lockNote').onclick=lockAction;$('unlockHere').onclick=lockAction;
+$('relockNow').onclick=()=>{const n=cur();if(n?.vault&&n.unlocked){flush();api.relockNote(n.id).then(refresh);}};
 $('lockNote').oncontextmenu=e=>{e.preventDefault();const n=cur();if(!n?.vault)return;
   askPassword('Remove note password','Enter the existing password to permanently remove encryption from this note.',pass=>api.removeNoteLock(n.id,pass));};
 $('theme').onchange=e=>{D.settings.theme=e.target.value;api.set('theme',e.target.value);render();};

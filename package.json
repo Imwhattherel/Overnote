@@ -1,13 +1,13 @@
 {
   "name": "overnote",
-  "version": "2.1.1",
+  "version": "2.1.4",
   "description": "Overnote: colorful desktop notes, folders, pop-outs and reminders",
   "author": "whattherel",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",
-    "test": "node tests/smoke.js && node tests/features.js && node tests/new_features.js"
+    "test": "node tests/smoke.js && node tests/features.js && node tests/new_features.js && node tests/dom_structure.js"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -28,7 +28,8 @@
       "note-security.js",
       "storage-tools.js",
       "LICENSE",
-      "sticky-import.js"
+      "sticky-import.js",
+      "idle-lock.js"
     ],
     "directories": {
       "output": "dist"
@@ -39,7 +40,7 @@
         "nsis",
         "portable"
       ],
-      "legalTrademarks": "Overnote \u00b7 whattherel"
+      "legalTrademarks": "Overnote · whattherel"
     },
     "nsis": {
       "oneClick": true,
