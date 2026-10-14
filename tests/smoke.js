@@ -37,7 +37,7 @@ class W extends EventEmitter {
   static fromWebContents(wc) { return wc?.win; }
   loadFile(filename, options) { this.noteId = filename === 'alarm.html' ? 'alarm' : (options?.query?.note || 'main');
     if (this.noteId === 'alarm') process.nextTick(() => this.webContents.emit('did-finish-load')); }
-  setOpacity() {} setAlwaysOnTop() {} setVisibleOnAllWorkspaces() {}
+  setOpacity() {} setAlwaysOnTop(value) { this.onTop=!!value; } setVisibleOnAllWorkspaces() {}
   setBounds(b) { this.bounds = { ...b }; }
   getBounds() { return this.bounds; }
   isDestroyed() { return this.destroyed; }
@@ -101,7 +101,7 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     nextSoundDialog = { canceled: false, filePaths: [audioSource] };
     const chosen = await callFrom(soundWindow, 'choose-alarm-sound');
     assert(chosen.ok && chosen.custom && chosen.name === 'custom-test.wav', 'audio picker saves chosen filename');
-    assert.equal(fs.existsSync(path.join(root, 'sticky-notes', 'alarm-sound.wav')), true, 'selected file copied to app data');
+    assert.equal(fs.existsSync(path.join(root, 'Overnote', 'alarm-sound.wav')), true, 'selected file copied to app data');
     fs.rmSync(audioSource);
     let chosenAudio = call('get-alarm-audio');
     assert(chosenAudio.src.startsWith('data:audio/wav;base64,'), 'audio delivered to ringing window');
@@ -238,7 +238,7 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     silentAlarm.close();
     assert.equal(call('load').tabs.find(t=>t.id===second).reminders.some(r=>r.id===silenced.id), false,
       'X closes alarm and deletes its reminder');
-    assert.equal(JSON.parse(fs.readFileSync(path.join(root,'sticky-notes','notes.json'))).tabs.find(t=>t.id===second).reminders.some(r=>r.id===silenced.id), false,
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root,'Overnote','notes.json'))).tabs.find(t=>t.id===second).reminders.some(r=>r.id===silenced.id), false,
       'X deletion is immediately persisted to disk');
     call('set-reminder', second, tomorrow, 'none', 'Another scan');
     assert.equal(W.all.filter(w=>w.noteId==='alarm' && !w.isDestroyed()).length,0, 'deleted alarm never reopens');
@@ -300,7 +300,7 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     main.setBounds({ x: 135, y: 145, width: 465, height: 425 });
     main.emit('moved');
     await new Promise(resolve => setTimeout(resolve, 850));
-    const savedPath = path.join(root, 'sticky-notes', 'notes.json');
+    const savedPath = path.join(root, 'Overnote', 'notes.json');
     let saved = JSON.parse(fs.readFileSync(savedPath, 'utf8'));
     assert.equal(saved.tabs.find(t => t.id === original).popped, true);
     assert.equal(saved.tabs.find(t => t.id === original).bounds.displayId, 2);
@@ -339,7 +339,7 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     const cleared = callFrom(restoredMain, 'reset-alarm-sound');
     assert(cleared.ok && !cleared.custom, 'reset restores built-in chime');
     assert.equal(call('get-alarm-audio').src, null, 'reset removes custom audio playback');
-    assert.equal(fs.existsSync(path.join(root, 'sticky-notes', 'alarm-sound.wav')), false, 'reset removes copied audio');
+    assert.equal(fs.existsSync(path.join(root, 'Overnote', 'alarm-sound.wav')), false, 'reset removes copied audio');
 
     assert.equal(call('load').tabs.find(t=>t.id===original).reminders[0].at, oldAt, 'legacy reminder survives restart');
     assert.equal(call('load').tabs.find(t=>t.id===second).reminders.find(r=>r.id===done.id).dismissedAt, past, 'completed reminder survives restart');
@@ -349,7 +349,7 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     assert.equal(backupSettings.localFolder,legacySyncedFolder,'legacy Google Drive setting migrates to generic local folder');
     assert.equal(call('load').settings.backupCloudEnabled,false,'migration avoids remote destination');
     const manualBackup = await callFrom(restoredMain, 'backup-now');
-    assert(manualBackup.ok && fs.existsSync(path.join(root,'sticky-notes','backups',manualBackup.filename)));
+    assert(manualBackup.ok && fs.existsSync(path.join(root,'Overnote','backups',manualBackup.filename)));
     assert(fs.existsSync(path.join(legacySyncedFolder,manualBackup.filename)),'local folder receives extra backup copy');
     const anotherFolder=path.join(root,'onedrive-folder');fs.mkdirSync(anotherFolder);
     nextSoundDialog={canceled:false,filePaths:[anotherFolder]};
@@ -359,7 +359,7 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     assert(nextBackup.ok && fs.existsSync(path.join(anotherFolder,nextBackup.filename)),'selected local folder receives backup');
     assert.equal(callFrom(restoredMain,'backup-configure',{target:'drive',enabled:false}).ok,false,'Google Drive is no longer a separate target');
     const resetLocal=callFrom(restoredMain,'backup-reset-local');
-    assert(resetLocal.ok && resetLocal.localFolder===path.join(root,'sticky-notes','backups'),'default backup folder can be restored');
+    assert(resetLocal.ok && resetLocal.localFolder===path.join(root,'Overnote','backups'),'default backup folder can be restored');
     assert.equal(callFrom(restoredMain,'backup-configure',{target:'discord',enabled:true,githubRepo:'',githubBranch:'main',githubDirectory:'notes'}).ok,false,'remote setup requires credential');
     const discord = callFrom(restoredMain,'backup-configure',{target:'discord',enabled:true,githubRepo:'',githubBranch:'main',githubDirectory:'notes',webhook:'https://discord.com/api/webhooks/123456/secretkey'});
     assert(discord.ok && discord.hasDiscord,'Discord credentials saved encrypted');
@@ -388,9 +388,26 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     assert(importedFromPopup.ok && importedFromPopup.count===1,'import from detached note context is allowed');
     assert.equal(call('load').active,call('load').tabs.at(-1).id,'new import focused in main window');
     await call('dock',fresh.id);
+    // Individual pop-out pins remain independent from the main global setting.
+    assert.equal(restoredMain.onTop,true, 'main remains on top per its own preference');
+    assert.equal(restoredPopup.onTop,false, 'ordinary pop-outs are not pinned by the main preference');
+    assert.equal(callFrom(restoredMain,'pin-note',original,true),true);
+    assert.equal(restoredPopup.onTop,true, 'pinning makes only the target pop-out topmost');
+    assert.equal(call('load').tabs.find(t=>t.id===original).pinned,true);
+    assert.equal(JSON.parse(fs.readFileSync(savedPath,'utf8')).tabs.find(t=>t.id===original).pinned,true, 'pin persisted on disk');
+    assert.equal(callFrom(restoredMain,'pin-note',original,false),false);
+    assert.equal(restoredPopup.onTop,false, 'unpinning restores normal stacking');
+    assert.equal(restoredMain.onTop,true, 'unpinning did not affect the main window');
+    const fav=callFrom(restoredMain,'favorite-color','#123456',true);
+    assert.deepEqual(fav.colors,['#123456']);
+    assert.equal(callFrom(restoredMain,'favorite-color','#ffffff',true).ok,true);
+    assert.deepEqual(callFrom(restoredMain,'favorite-color','#123456',false).colors,['#ffffff']);
+    assert.equal(callFrom(restoredMain,'favorite-color','red',true).ok,false, 'invalid colors rejected');
     const grouped = callFrom(restoredMain,'create-folder','Colors test');
     assert(grouped && callFrom(restoredMain,'folder-color',grouped.id,'#f7b8c6'));
     assert.equal(call('load').folders.find(f=>f.id===grouped.id).color,'#f7b8c6','folder color stored');
+    assert.equal(callFrom(restoredMain,'folder-color',grouped.id,'#123456'),true,'custom folder colors accepted');
+    assert.equal(call('load').folders.find(f=>f.id===grouped.id).color,'#123456');
     assert.equal(await callFrom(restoredMain,'delete-note',fresh.id),true,'note deletion succeeds');
     assert(callFrom(restoredMain,'list-trash').some(n=>n.id===fresh.id),'deleted note is recoverable');
     assert(callFrom(restoredMain,'restore-trash',fresh.id),'restore note from trash');
@@ -399,16 +416,19 @@ fs.writeFileSync(path.join(root, 'sticky-notes', 'notes.json'), JSON.stringify({
     assert(callFrom(restoredMain,'purge-trash',fresh.id),'permanent deletion succeeds');
     assert(!callFrom(restoredMain,'list-trash').some(n=>n.id===fresh.id),'permanent deletion removes note from trash');
     // Full backup/restore must preserve detached geometry, folders, colors, reminders.
+    callFrom(restoredMain,'pin-note',original,true); // pin should be included in a full backup
     const preservedBackup = await callFrom(restoredMain,'backup-now');
-    const chosenBackup = path.join(root,'sticky-notes','backups',preservedBackup.filename);
+    const chosenBackup = path.join(root,'Overnote','backups',preservedBackup.filename);
     const originalTabs = call('load').tabs.length;
     callFrom(restoredMain,'delete-folder',grouped.id);
     nextSoundDialog={canceled:false,filePaths:[chosenBackup]};
     const fromBackup = await callFrom(restoredMain,'backup-restore');
     assert(fromBackup.ok && fromBackup.count===originalTabs,'restores complete workspace');
-    assert.equal(call('load').folders.find(f=>f.id===grouped.id).color,'#f7b8c6','restore keeps folder colors');
+    assert.equal(call('load').folders.find(f=>f.id===grouped.id).color,'#123456','restore keeps custom folder colors');
+    assert.equal(call('load').tabs.find(t=>t.id===original).pinned,true,'restore keeps pop-out pin');
+    assert.deepEqual(call('load').settings.favoriteColors,['#ffffff'],'restore keeps favorite colors');
     assert.equal(call('load').tabs.find(t=>t.id===original).bounds.displayId,2,'restore keeps popup monitor');
-    assert(fs.existsSync(path.join(root,'sticky-notes','backups',fromBackup.safetyFile)),'restore saves current state for undo');
+    assert(fs.existsSync(path.join(root,'Overnote','backups',fromBackup.safetyFile)),'restore saves current state for undo');
     // App shutdown must never delete the current alarm just because Windows
     // closes its popup as part of exit.
     const onExit = call('set-reminder', second, tomorrow, 'none', 'Preserve on app quit', null, true);

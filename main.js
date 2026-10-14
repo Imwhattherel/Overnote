@@ -1,15 +1,20 @@
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, Tray, Menu, nativeImage, shell, Notification, powerMonitor, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, Tray, Menu, nativeImage, shell, Notification, powerMonitor, dialog, safeStorage, session } = require('electron');
 const path = require('path'), fs = require('fs');
 const { randomUUID } = require('crypto');
+const storage = require('./storage-tools'), security = require('./note-security'), formats = require('./note-formats'), winSticky=require('./sticky-import');
 // Alarm sounds must start when an important reminder is due without a click.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
-// Keep notes in the same folder whether run from source or installed.
-// Electron requires setPath's directory to exist on a fresh installation.
-const userDataDir = path.join(app.getPath('appData'), 'sticky-notes');
+// Move user data to Overnote. Migrate only essential files once, never delete old data.
+// Keep Chromium caches away from notes and backup folders to reduce clutter.
+const legacyDir = path.join(app.getPath('appData'), 'sticky-notes');
+const userDataDir = path.join(app.getPath('appData'), 'Overnote');
 fs.mkdirSync(userDataDir, { recursive: true });
+try { storage.migrateLegacy(legacyDir, userDataDir); } catch (err) { console.error('Legacy data migration failed:', err); }
 app.setPath('userData', userDataDir);
-app.setAppUserModelId('com.stickynotes.app');
+try { const cacheDir=path.join(process.env.LOCALAPPDATA || app.getPath('appData'),'Overnote','Chromium'); fs.mkdirSync(cacheDir,{recursive:true}); app.setPath('sessionData',cacheDir); }catch{}
+app.setAppUserModelId('com.stickynotes.app'); // preserve legacy notifications and shortcut identity
+app.setAboutPanelOptions?.({ applicationName: 'Overnote', applicationVersion: app.getVersion?.(), copyright: 'whattherel' });
 // images must load from outside the app.asar archive in the installed app
 const asset = f => {
   const p = path.join(__dirname, 'assets', f), u = p.replace('app.asar' + path.sep, 'app.asar.unpacked' + path.sep);
@@ -20,12 +25,14 @@ const TRAY_ICON = asset('icon.ico');
 
 const file = path.join(app.getPath('userData'), 'notes.json');
 const COLORS = ['#f6e27a', '#a8e6b8', '#f7b8c6', '#a9d4f5', '#cdb8f5', '#fbc48c'];
+const validColor = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
+const normColor = c => c.toLowerCase();
 const defaults = {
   tabs: [{ id: 't1', title: 'Notes', text: '', color: COLORS[0], reminders: [] }],
   active: 't1',
   folders: [],
   trash: [],
-  settings: { displayId: null, opacity: 0.96, fontSize: 15, font: 'clean', onTop: true, tabWidth: 120, sideTabs: true, alarmVolume: 0.75, alarmSoundName: '', alarmSoundExt: '', backupTarget: 'local', backupCloudEnabled: false, backupLocalFolder: '', backupDriveFolder: '', backupGithubRepo: '', backupGithubBranch: 'main', backupGithubDirectory: 'overnote-backups', lastBackupAt: null, backupStatus: '', main: { x: 40, y: 40, w: 440, h: 420 } }
+  settings: { favoriteColors: [], livePreview: true, theme: 'light', checkUpdates: true, displayId: null, opacity: 0.96, fontSize: 15, font: 'clean', onTop: true, tabWidth: 120, sideTabs: true, alarmVolume: 0.75, alarmSoundName: '', alarmSoundExt: '', backupTarget: 'local', backupCloudEnabled: false, backupLocalFolder: '', backupDriveFolder: '', backupGithubRepo: '', backupGithubBranch: 'main', backupGithubDirectory: 'overnote-backups', lastBackupAt: null, backupStatus: '', main: { x: 40, y: 40, w: 440, h: 420 } }
 };
 let data = structuredClone(defaults);
 try {
@@ -36,11 +43,13 @@ try {
   const seenFolders = new Set();
   data.folders = rawFolders.filter(f => f && typeof f === 'object').map(f => ({
     id: String(f.id || ''), name: String(f.name || 'Untitled folder').trim().slice(0, 64) || 'Untitled folder',
-    collapsed: !!f.collapsed, color: COLORS.includes(f.color) ? f.color : null
+    collapsed: !!f.collapsed, color: validColor(f.color) ? normColor(f.color) : null
   })).filter(f => f.id && !seenFolders.has(f.id) && seenFolders.add(f.id));
   data.trash = Array.isArray(data.trash) ? data.trash.filter(x => x && x.note && x.deletedAt && (Date.now() - Date.parse(x.deletedAt)) < 30 * 86400000).slice(-500) : [];
   const validFolderIds = new Set(data.folders.map(f => f.id));
   const s = data.settings;
+  s.theme = s.theme === 'dark' ? 'dark' : 'light';
+  s.favoriteColors = Array.isArray(s.favoriteColors) ? [...new Set(s.favoriteColors.filter(validColor).map(normColor))].slice(0, 12) : [];
   // Former Google Drive destination is now just a local folder. Preserve the
   // previously chosen synced path so existing scheduled backups keep working.
   if (s.backupTarget === 'drive') {
@@ -50,7 +59,9 @@ try {
   }
   if (s.offset) { s.main = { x: s.offset.x, y: s.offset.y, w: s.size?.w || 340, h: s.size?.h || 400 }; delete s.offset; delete s.size; }
   data.tabs.forEach((t, i) => {
-    t.color ||= s.color || COLORS[i % COLORS.length];
+    t.color = validColor(t.color) ? normColor(t.color) : (validColor(s.color) ? normColor(s.color) : COLORS[i % COLORS.length]);
+    t.pinned = t.pinned === true;
+    if (t.vault) t.text = ''; // never load saved encrypted notes as plaintext
     t.folderId = validFolderIds.has(t.folderId) ? t.folderId : null;
     // Older versions stored a single reminder directly on the tab.
     // Copy it once into a collection, retaining its due/done/snooze state.
@@ -94,10 +105,14 @@ function alarmAudio() {
   }
   return { ...info, src: null }; // built-in chime fallback
 }
+const noteKeys = new Map(); // in-memory only; keys are never written to disk
 const save = () => {
   // Atomic replacement means a crash cannot leave notes.json half-written.
   const tmp = file + '.new';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  const persisted = structuredClone(data);
+  for (const t of persisted.tabs) { delete t.unlocked; if (t.vault) { t.text = ''; const k=noteKeys.get(t.id); if (k) { t.vault=security.seal(data.tabs.find(n=>n.id===t.id).text || '',k,Buffer.from(t.vault.salt,'base64')); data.tabs.find(n=>n.id===t.id).vault=t.vault; } } }
+  for (const t of persisted.trash || []) if (t.note?.vault) t.note.text = '';
+  fs.writeFileSync(tmp, JSON.stringify(persisted, null, 2));
   fs.renameSync(tmp, file);
 };
 const validFolder = id => id == null || data.folders.some(f => f.id === id);
@@ -117,7 +132,13 @@ let alarmWin = null, activeAlarm = null;
 const silencedAlarms = new Set();
 const boundsOf = k => (k === 'main' ? data.settings.main : note(k)?.bounds);
 const refreshAll = () => wins.forEach(w => !w.isDestroyed() && w.webContents.send('refresh'));
-const applyTop = w => { w.setAlwaysOnTop(data.settings.onTop, 'screen-saver'); w.setVisibleOnAllWorkspaces(data.settings.onTop, { visibleOnFullScreen: true }); };
+// The main-window Stay on Top preference is independent from each popped-out note's pin.
+const applyTop = w => {
+  const key = windowKey(w);
+  const pinned = key === 'main' ? !!data.settings.onTop : !!note(key)?.pinned;
+  w.setAlwaysOnTop(pinned, 'floating');
+  w.setVisibleOnAllWorkspaces(pinned, { visibleOnFullScreen: true });
+};
 const displayBounds = d => ({ x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height });
 const matchingGeometry = (a, b) => a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
@@ -547,6 +568,7 @@ async function makeBackup(remote = false) {
   try {
     fs.mkdirSync(backupsDir, { recursive: true });
     const filename = backup.newBackupName();
+    save(); // refresh vault encryption before making an external backup
     const bytes = Buffer.from(JSON.stringify(backup.snapshot(data), null, 2), 'utf8');
     const destination = path.join(backupsDir, filename);
     fs.writeFileSync(destination + '.tmp', bytes);
@@ -651,7 +673,7 @@ ipcMain.handle('notes-export', async (e, ids, withReminders) => {
   if (!fromMain(e) && !(ownNote && ownNote !== 'main' && Array.isArray(ids) && ids.length === 1 && ids[0] === ownNote))
     return {ok:false,error:'Open the note you want to export.'};
   let output;
-  try { output = backup.exportNotes(data, ids, withReminders === true); }
+  try { if(ids.some(id=>note(id)?.vault&&!noteKeys.has(id)))throw Error('Unlock locked notes before sharing them.'); output = backup.exportNotes(data, ids, withReminders === true); }
   catch(err) { return {ok:false,error:err.message}; }
   const pick = await dialog.showSaveDialog(owner || wins.get('main'), {title:'Share selected notes',
     defaultPath:'Overnote-Shared.json', filters:[{name:'Overnote shared file', extensions:['json']}]});
@@ -663,12 +685,13 @@ ipcMain.handle('notes-import', async e => {
   const owner = BrowserWindow.fromWebContents(e.sender);
   const key = owner ? windowKey(owner) : null;
   if (!key || (key !== 'main' && !note(key))) return {ok:false,error:'Open an Overnote window to import notes.'};
-  const pick = await dialog.showOpenDialog(owner, {title:'Import shared notes',properties:['openFile'],filters:[{name:'Overnote shared file',extensions:['json']}]});
+  const pick = await dialog.showOpenDialog(owner, {title:'Import shared notes',properties:['openFile'],filters:[{name:'Notes (JSON, MD, TXT or classic Sticky Notes)',extensions:['json','md','txt','sqlite']}]});
   if (pick.canceled || !pick.filePaths?.[0]) return {ok:false,canceled:true};
   try {
     const f = pick.filePaths[0];
-    if (fs.statSync(f).size > backup.MAX_IMPORT_BYTES) throw Error('Shared file is too large (15 MB limit).');
-    const notes = backup.parseShared(JSON.parse(fs.readFileSync(f,'utf8')));
+    if (fs.statSync(f).size > (path.extname(f).toLowerCase()==='.sqlite'?60*1024*1024:backup.MAX_IMPORT_BYTES)) throw Error('Imported file is too large.');
+    const ext=path.extname(f).toLowerCase();
+    const notes = ext === '.json' ? backup.parseShared(JSON.parse(fs.readFileSync(f,'utf8'))) : (ext === '.sqlite' ? winSticky.readLegacy(f) : formats.textNotes(path.basename(f),fs.readFileSync(f,'utf8'))).map(n=>({...n,id:n.id||'t'+randomUUID(),pinned:false,color:COLORS[0],folder:'',preview:false,popped:false}));
     const beforeImport = await makeBackup(false);
     if (!beforeImport.ok) throw Error('Could not create safety backup: '+beforeImport.error);
     const needed = new Map();
@@ -695,19 +718,76 @@ ipcMain.handle('backup-restore', async e => {
     const f = pick.filePaths[0];
     if (fs.statSync(f).size > backup.MAX_IMPORT_BYTES) throw Error('Backup is too large (15 MB limit).');
     const restored = backup.restoreSnapshot(JSON.parse(fs.readFileSync(f,'utf8')),data.settings);
+    noteKeys.clear();
     // First save the current state; restore cannot destroy the only copy.
     const safety = await makeBackup(false);
     if (!safety.ok) throw Error('Could not save a safety backup before restore: ' + safety.error);
     closeAlarm();
     for (const [k, win] of wins) if (k !== 'main') { win.destroy(); wins.delete(k); }
-    data = restored; save();
+    data = restored; for(const n of data.tabs)if(n.vault)n.text=''; save();
     data.tabs.filter(t=>t.popped).forEach(t=>createWin(t.id));
     place('main'); checkReminders(); refreshAll();
     return {ok:true,count:data.tabs.length,safetyFile:safety.filename};
   } catch(err) { return {ok:false,error:err.message}; }
 });
 
-ipcMain.handle('load', () => data);
+ipcMain.handle('load', () => { for(const n of data.tabs) if(n.vault)n.unlocked=noteKeys.has(n.id);return data; });
+// Lock/unlock are atomic: encrypted text is kept in the vault on disk.
+ipcMain.handle('note-lock', (e, id, password) => {
+  const n=note(id),caller=BrowserWindow.fromWebContents(e.sender),k=caller&&windowKey(caller);
+  if(!n||!(k==='main'||k===id)||n.vault)return {ok:false,error:'Note cannot be locked.'};
+  try { const secured=security.lockText(n.text||'',password); n.vault=secured.vault; n.text='';noteKeys.delete(id);save();refreshAll();return {ok:true}; }
+  catch(err){return {ok:false,error:err.message};}
+});
+ipcMain.handle('note-unlock', (e,id,password) => {
+  const n=note(id),caller=BrowserWindow.fromWebContents(e.sender),k=caller&&windowKey(caller);
+  if(!n?.vault||!(k==='main'||k===id))return {ok:false,error:'Note not found.'};
+  try{const decoded=security.unlockText(n.vault,password);noteKeys.set(id,decoded.key);n.text=decoded.text;refreshAll();return {ok:true};}
+  catch(err){return {ok:false,error:err.message};}
+});
+ipcMain.handle('note-relock', (e,id) => {const n=note(id);if(!n?.vault)return false;save();noteKeys.delete(id);n.text='';refreshAll();return true;});
+ipcMain.handle('note-remove-lock', (e,id,password) => {
+  const n=note(id);if(!n?.vault)return {ok:false,error:'Note is not locked.'};
+  try{const decoded=security.unlockText(n.vault,password);n.text=decoded.text;delete n.vault;noteKeys.delete(id);save();refreshAll();return {ok:true};}
+  catch(err){return {ok:false,error:err.message};}
+});
+// GitHub releases are checked on demand and optionally at startup, without a token.
+ipcMain.handle('storage-clean', async e => {
+  if(!fromMain(e))return {ok:false,error:'Open Settings in the main window.'};
+  try { const removed=storage.cleanTransients(userDataDir);
+    if(session?.defaultSession?.clearCache)await session.defaultSession.clearCache();
+    return {ok:true,message:'Cleared temporary runtime files and Chromium cache. Notes, passwords, backups and alarms were kept. ('+removed.length+' stale log/temp files)'};
+  }catch(err){return {ok:false,error:err.message};}
+});
+ipcMain.handle('version-check', async () => {
+  const current=app.getVersion();
+  try {const ctrl=new AbortController(),to=setTimeout(()=>ctrl.abort(),8000);
+    let response;try {response=await fetch('https://api.github.com/repos/Imwhattherel/Overnote/releases/latest',{headers:{'Accept':'application/vnd.github+json','User-Agent':'Overnote-Updater'},signal:ctrl.signal});} finally{clearTimeout(to)}
+    if(response.status===404)return {ok:false,current,error:'No published GitHub release found yet. Publish a release to enable update checks.'};
+    if(!response.ok)throw Error('GitHub returned HTTP '+response.status);
+    const r=await response.json();const cmp=formats.cmpVersion(r.tag_name,current);
+    return {ok:true,current,latest:r.tag_name,available:cmp===1,url:r.html_url || 'https://github.com/Imwhattherel/Overnote/releases'};
+  }catch(err){return {ok:false,current,error:'Could not check GitHub: '+err.message};}
+});
+// Export a single note as Markdown or PDF, rendering entirely offline.
+ipcMain.handle('note-export-file', async (e,id,format) => {
+  const n=note(id),win=BrowserWindow.fromWebContents(e.sender),owner=win&&windowKey(win);
+  if(!n||!(owner==='main'||owner===id)||!['md','pdf'].includes(format))return {ok:false,error:'Invalid note or format.'};
+  if(n.vault&&!noteKeys.has(id))return {ok:false,error:'Unlock this note before exporting it.'};
+  const filename=n.title.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').slice(0,64)||'Note';
+  const result=await dialog.showSaveDialog(win,{title:'Export note as '+format.toUpperCase(),defaultPath:filename+'.'+format,filters:[{name:format==='pdf'?'PDF document':'Markdown document',extensions:[format]}]});
+  if(result.canceled||!result.filePath)return {ok:false,canceled:true};
+  try {
+    if(format==='md')fs.writeFileSync(result.filePath,n.text||'','utf8');
+    else {
+      const off=new BrowserWindow({show:false,webPreferences:{sandbox:true,nodeIntegration:false}});
+      try { await off.loadURL('data:text/html;charset=utf-8;base64,'+Buffer.from(formats.pdfHtml(n.title,n.text||'')).toString('base64'));
+        const pdf=await off.webContents.printToPDF({printBackground:true,pageSize:'A4'});fs.writeFileSync(result.filePath,pdf);
+      } finally {off.destroy();}
+    }
+    return {ok:true};
+  }catch(err){return {ok:false,error:err.message};}
+});
 ipcMain.handle('get-startup', startupEnabled);
 ipcMain.handle('set-reminder', (_, id, at, repeat, content, reminderId, important) => setReminder(id, at, repeat, content, reminderId, important));
 // Restrict alarm commands to the dedicated alarm window.
@@ -792,9 +872,30 @@ ipcMain.handle('displays', () => screen.getAllDisplays().map((d, i) => ({
   id: d.id, label: `Monitor ${i + 1} (${d.bounds.width}×${d.bounds.height})${d.id === screen.getPrimaryDisplay().id ? ' – primary' : ''}`
 })));
 ipcMain.on('update', (_, id, p) => {
-  const n = note(id); if (!n) return;
-  for (const k of ['title', 'text', 'color', 'preview']) if (k in p) n[k] = p[k];
+  const n = note(id); if (!n || !p || typeof p !== 'object') return;
+  if (n.vault && !noteKeys.has(id)) return;
+  if ('title' in p && typeof p.title === 'string') n.title = p.title.slice(0, 64);
+  if ('text' in p && typeof p.text === 'string' && p.text.length <= 12_000_000) n.text = p.text;
+  if ('color' in p && validColor(p.color)) n.color = normColor(p.color);
+  if ('preview' in p) n.preview = !!p.preview;
   save();
+});
+// Favorite colors belong to the workspace and are available in all note windows.
+ipcMain.handle('favorite-color', (_, color, add) => {
+  if (!validColor(color)) return { ok: false, colors: data.settings.favoriteColors || [] };
+  const c = normColor(color), list = Array.isArray(data.settings.favoriteColors) ? data.settings.favoriteColors : [];
+  data.settings.favoriteColors = add ? [...new Set([...list, c])].slice(-12) : list.filter(x => x !== c);
+  save(); refreshAll();
+  return { ok: true, colors: data.settings.favoriteColors };
+});
+ipcMain.handle('pin-note', (e, id, pinned) => {
+  const n = note(id), key = windowKey(BrowserWindow.fromWebContents(e.sender));
+  if (!n || (key !== 'main' && key !== id)) return false;
+  n.pinned = pinned === true;
+  save();
+  if (wins.has(id)) applyTop(wins.get(id));
+  refreshAll();
+  return n.pinned;
 });
 ipcMain.on('reorder', (_, ids) => {
   if (!Array.isArray(ids)) return;
@@ -813,9 +914,9 @@ ipcMain.handle('create-folder', (e, name) => {
   return folder;
 });
 ipcMain.handle('folder-color', (e, id, color) => {
-  if (!fromMain(e) || !COLORS.includes(color)) return false;
+  if (!fromMain(e) || !validColor(color)) return false;
   const f = data.folders.find(f => f.id === id); if (!f) return false;
-  f.color = color; save(); refreshAll(); return true;
+  f.color = normColor(color); save(); refreshAll(); return true;
 });
 ipcMain.handle('rename-folder', (e, id, name) => {
   if (!fromMain(e)) return false;
@@ -927,17 +1028,19 @@ ipcMain.handle('purge-trash', (e, id) => {
   save(); refreshAll(); return true;
 });
 ipcMain.on('set-setting', (e, k, v) => {
-  if (!['displayId', 'opacity', 'onTop', 'font', 'fontSize', 'tabWidth', 'alarmVolume'].includes(k)) return;
+  if (!['displayId', 'opacity', 'onTop', 'font', 'fontSize', 'tabWidth', 'alarmVolume', 'livePreview','theme','checkUpdates'].includes(k)) return;
   if (k === 'displayId') {
     const w = BrowserWindow.fromWebContents(e.sender);
     if (w) moveToDisplay(windowKey(w), v);
     return;
   }
+  if (k === 'theme') v = v === 'dark' ? 'dark' : 'light';
+  if (k === 'checkUpdates') v = !!v;
   if (k === 'alarmVolume') v = Math.max(0, Math.min(1, Number(v) || 0));
   data.settings[k] = v; save();
   if (k === 'opacity') wins.forEach(w => w.setOpacity(v));
   if (k === 'onTop') wins.forEach(applyTop);
-  if (k === 'font' || k === 'fontSize' || k === 'tabWidth') refreshAll();
+  if (k === 'font' || k === 'fontSize' || k === 'tabWidth' || k === 'livePreview' || k === 'theme') refreshAll();
 });
 ipcMain.on('hide', hideAll);
 ipcMain.on('quit', () => app.quit());

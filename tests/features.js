@@ -1,20 +1,22 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const B = require('../backup-tools');
-const folder = {id:'f1',name:'Projects',collapsed:true,color:'#f7b8c6'};
-const note = {id:'t1',title:'Sprint plan',text:'\n- task: ship\n',color:'#a8e6b8',folderId:'f1',popped:true,
+const folder = {id:'f1',name:'Projects',collapsed:true,color:'#123456'};
+const note = {id:'t1',title:'Sprint plan',text:'\n- task: ship\n',color:'#008080',pinned:true,folderId:'f1',popped:true,
   bounds:{x:45,y:32,w:400,h:320,displayId:2},reminders:[{id:'r1',text:'Send invoice',at:'2030-11-01T12:00:00.000Z',repeat:'weekly',important:true}]};
 const state = {tabs:[{id:'t0',title:'Main',text:'Docked',popped:false,reminders:[]},note],folders:[folder],trash:[],active:'t1',settings:{backupTarget:'discord',backupCloudEnabled:true,backupDriveFolder:'/sensitive/path',backupStatus:'ok',
-  backupGithubRepo:'topsecret/private',backupGithubBranch:'main',alarmSoundName:'alarm.mp3',font:'mono'}};
+  backupGithubRepo:'topsecret/private',backupGithubBranch:'main',alarmSoundName:'alarm.mp3',font:'mono',favoriteColors:['#123456','#008080']}};
 const raw = B.exportNotes(state,['t1']);
 assert.equal(raw.format,'sticky-notes-share');
 assert.match(B.newBackupName(),/^overnote-/);
 assert.equal(raw.notes[0].reminders.length,0,'reminders excluded by default');
 assert.equal(raw.notes[0].folder,'Projects');
+assert.equal(raw.notes[0].color,'#008080','custom colors are shared');
 assert.equal(raw.notes[0].bounds,undefined,'window placements are excluded');
 const imported = B.parseShared(raw);
 assert(imported[0].id!==note.id,'new IDs prevent collisions');
 assert(imported[0].text===note.text && imported[0].folder==='Projects');
+assert.equal(imported[0].color,'#008080');assert.equal(imported[0].pinned,false,'shared notes are not pinned on the recipient computer');
 const sharedRem = B.parseShared(B.exportNotes(state,['t1'],true));
 assert.equal(sharedRem[0].reminders.length,1); assert.equal(sharedRem[0].reminders[0].important,true);
 assert(sharedRem[0].reminders[0].id!==note.reminders[0].id);
@@ -25,6 +27,9 @@ assert(!JSON.stringify(snapshot).includes('topsecret/private'),'remote config ex
 assert(!JSON.stringify(snapshot).includes('/sensitive/path'),'local path excluded');
 const restored = B.restoreSnapshot(snapshot,{...state.settings, backupTarget:'local',backupDriveFolder:'new/target'});
 assert.equal(restored.folders[0].color,folder.color);
+assert.equal(restored.tabs[1].pinned,true,'workspace backup retains per-note pin');
+assert.deepEqual(restored.settings.favoriteColors,['#123456','#008080'],'workspace backup retains favorite palette');
+assert.equal(restored.tabs[1].color,'#008080');
 assert.equal(restored.tabs[1].popped,true); assert.deepEqual(restored.tabs[1].bounds,note.bounds);
 assert.equal(restored.settings.backupTarget,'local','restore keeps current backup target');
 assert.equal(restored.settings.backupDriveFolder,'new/target');

@@ -3,6 +3,7 @@
 const fs = require('node:fs'), path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const PALETTE = ['#f6e27a', '#a8e6b8', '#f7b8c6', '#a9d4f5', '#cdb8f5', '#fbc48c'];
+const validColor = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
 const MAX_IMPORT_BYTES = 15 * 1024 * 1024;
 const safeTitle = (v, fallback) => String(v || fallback).trim().slice(0, 64) || fallback;
 function exportNotes(all, ids, includeReminders = false) {
@@ -12,7 +13,7 @@ function exportNotes(all, ids, includeReminders = false) {
   if (ids.some(id => !byId.has(id))) throw Error('Selected note does not exist.');
   return { format: 'sticky-notes-share', version: 1, exportedAt: new Date().toISOString(),
     notes: ids.map(id => { const n = byId.get(id); return {
-      title: n.title, text: n.text || '', color: PALETTE.includes(n.color) ? n.color : PALETTE[0],
+      title: n.title, text: n.text || '', color: validColor(n.color) ? n.color : PALETTE[0],
       folder: folders.get(n.folderId) || '',
       reminders: includeReminders ? (n.reminders || []).map(r => ({ text: r.text, at: r.at, repeat: r.repeat || 'none', important: !!r.important })) : []
     }; }) };
@@ -20,14 +21,14 @@ function exportNotes(all, ids, includeReminders = false) {
 function parseShared(raw) {
   if (!raw || raw.format !== 'sticky-notes-share' || raw.version !== 1 || !Array.isArray(raw.notes) || raw.notes.length < 1 || raw.notes.length > 500) throw Error('Not a valid Overnote shared-notes file.');
   return raw.notes.map(n => {
-    if (!n || typeof n.text !== 'string' || n.text.length > 2_000_000) throw Error('Shared note text is invalid or too large.');
+    if (!n || typeof n.text !== 'string' || n.text.length > 12_000_000) throw Error('Shared note text is invalid or too large.');
     const reminders = (Array.isArray(n.reminders) ? n.reminders : []).slice(0, 250).filter(r => r && typeof r.text === 'string' && Number.isFinite(Date.parse(r.at))).map(r => ({
       id: randomUUID(), text: r.text.slice(0, 500), at: new Date(r.at).toISOString(),
       repeat: ['none','daily','weekly'].includes(r.repeat) ? r.repeat : 'none', important: !!r.important,
       snoozedUntil: null, dismissedAt: null, notifiedAt: null
     }));
-    return { id: 't' + randomUUID(), title: safeTitle(n.title, 'Imported note'), text: n.text,
-      color: PALETTE.includes(n.color) ? n.color : PALETTE[0], folder: safeTitle(n.folder, ''),
+    return { id: 't' + randomUUID(), pinned: false, title: safeTitle(n.title, 'Imported note'), text: n.text,
+      color: validColor(n.color) ? n.color : PALETTE[0], folder: safeTitle(n.folder, ''),
       reminders, preview: false, popped: false };
   });
 }
@@ -40,16 +41,16 @@ function restoreSnapshot(raw, currentSettings) {
   const folders = (src.folders || []).slice(0, 1000).map(f => {
     if (typeof f.id !== 'string' || !f.id || fids.has(f.id)) throw Error('Invalid folder in backup.');
     fids.add(f.id);
-    return { id: f.id, name: safeTitle(f.name, 'Folder'), collapsed: !!f.collapsed, color: PALETTE.includes(f.color) ? f.color : null };
+    return { id: f.id, name: safeTitle(f.name, 'Folder'), collapsed: !!f.collapsed, color: validColor(f.color) ? f.color : null };
   });
   const tabs = src.tabs.map(n => {
-    if (!n || typeof n.id !== 'string' || !n.id || ids.has(n.id) || typeof n.text !== 'string' || n.text.length > 2_000_000) throw Error('Invalid or duplicate note in backup.');
+    if (!n || typeof n.id !== 'string' || !n.id || ids.has(n.id) || typeof n.text !== 'string' || n.text.length > 12_000_000 || (n.vault && (n.vault.v !== 1 || typeof n.vault.ct !== 'string'))) throw Error('Invalid or duplicate note in backup.');
     ids.add(n.id);
-    return { id: n.id, title: safeTitle(n.title, 'Notes'), text: n.text,
-      color: PALETTE.includes(n.color) ? n.color : PALETTE[0],
+    return { id: n.id, title: safeTitle(n.title, 'Notes'), text: n.vault ? '' : n.text, vault: n.vault || undefined,
+      color: validColor(n.color) ? n.color : PALETTE[0],
       folderId: fids.has(n.folderId) ? n.folderId : null,
       popped: !!n.popped, bounds: n.bounds && typeof n.bounds === 'object' ? n.bounds : undefined,
-      preview: !!n.preview,
+      preview: !!n.preview, pinned: !!n.pinned,
       reminders: (Array.isArray(n.reminders) ? n.reminders : []).slice(0, 500).filter(r => r && typeof r.text === 'string' && Number.isFinite(Date.parse(r.at))).map(r => ({
         id: typeof r.id === 'string' ? r.id : randomUUID(), text: r.text.slice(0,500), at: new Date(r.at).toISOString(),
         repeat: ['none','daily','weekly'].includes(r.repeat) ? r.repeat : 'none', important: !!r.important,
@@ -62,6 +63,7 @@ function restoreSnapshot(raw, currentSettings) {
   // Backup destinations and sound selection stay as configured on THIS computer.
   const preserved = ['backupTarget','backupCloudEnabled','backupDriveFolder','backupLocalFolder','backupGithubRepo','backupGithubBranch','backupGithubDirectory','lastBackupAt','backupStatus','alarmSoundName','alarmSoundExt','alarmVolume'];
   const settings = { ...currentSettings, ...orig };
+  settings.favoriteColors = Array.isArray(settings.favoriteColors) ? [...new Set(settings.favoriteColors.filter(validColor).map(c => c.toLowerCase()))].slice(0,12) : [];
   for (const k of preserved) settings[k] = currentSettings[k];
   return { tabs, folders, trash: (Array.isArray(src.trash) ? src.trash : []).slice(-500),
     active: tabs.some(t => t.id === src.active && !t.popped) ? src.active : tabs.find(t => !t.popped).id,
@@ -69,6 +71,9 @@ function restoreSnapshot(raw, currentSettings) {
 }
 function snapshot(data) {
   const copy = structuredClone(data);
+  // Never include unlocked encrypted text in backups.
+  for (const n of copy.tabs || []) {delete n.unlocked; if (n.vault) n.text='';}
+  for (const n of copy.trash || []) if (n.note?.vault) n.note.text='';
   // Backup destination metadata is local only. Secrets live separately.
   for (const k of ['backupTarget', 'backupCloudEnabled', 'backupDriveFolder', 'backupGithubRepo', 'backupGithubBranch', 'backupGithubDirectory', 'backupStatus']) delete copy.settings[k];
   return { format: 'sticky-notes-backup', version: 1, createdAt: new Date().toISOString(), data: copy };

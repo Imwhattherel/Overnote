@@ -1,6 +1,13 @@
 const { contextBridge, ipcRenderer: ipc } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   load: () => ipc.invoke('load'),
+  lockNote: (id,pass) => ipc.invoke('note-lock',id,pass),
+  unlockNote: (id,pass) => ipc.invoke('note-unlock',id,pass),
+  relockNote: id => ipc.invoke('note-relock',id),
+  removeNoteLock: (id,pass) => ipc.invoke('note-remove-lock',id,pass),
+  checkVersion: () => ipc.invoke('version-check'),
+  cleanStorage: () => ipc.invoke('storage-clean'),
+  exportFile: (id,format) => ipc.invoke('note-export-file',id,format),
   displays: () => ipc.invoke('displays'),
   currentDisplay: () => ipc.invoke('current-display'),
   moveToDisplay: id => ipc.invoke('move-to-display', id),
@@ -20,6 +27,8 @@ contextBridge.exposeInMainWorld('api', {
   setActive: id => ipc.send('set-active', id),
   add: folderId => ipc.invoke('add-note', folderId),
   folderColor: (id, color) => ipc.invoke('folder-color', id, color),
+  favoriteColor: (color, add) => ipc.invoke('favorite-color', color, add),
+  pinNote: (id, pinned) => ipc.invoke('pin-note', id, pinned),
   listTrash: () => ipc.invoke('list-trash'),
   restoreTrash: id => ipc.invoke('restore-trash', id),
   purgeTrash: id => ipc.invoke('purge-trash', id),

@@ -1,20 +1,20 @@
 {
   "name": "overnote",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Overnote: colorful desktop notes, folders, pop-outs and reminders",
-  "author": "Overnote",
+  "author": "whattherel",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",
-    "test": "node tests/smoke.js && node tests/features.js"
+    "test": "node tests/smoke.js && node tests/features.js && node tests/new_features.js"
   },
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.stickynotes.app",
+    "appId": "com.whattherel.overnote",
     "productName": "Overnote",
     "files": [
       "main.js",
@@ -23,7 +23,12 @@
       "index.html",
       "alarm.html",
       "alarm-preload.js",
-      "assets/**/*"
+      "assets/**/*",
+      "note-formats.js",
+      "note-security.js",
+      "storage-tools.js",
+      "LICENSE",
+      "sticky-import.js"
     ],
     "directories": {
       "output": "dist"
@@ -33,7 +38,8 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "legalTrademarks": "Overnote \u00b7 whattherel"
     },
     "nsis": {
       "oneClick": true,
@@ -49,5 +55,11 @@
     "asarUnpack": [
       "assets/**/*"
     ]
-  }
+  },
+  "homepage": "https://github.com/Imwhattherel/Overnote",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Imwhattherel/Overnote.git"
+  },
+  "license": "MIT"
 }
