@@ -1,0 +1,53 @@
+{
+  "name": "overnote",
+  "version": "2.0.1",
+  "description": "Overnote: colorful desktop notes, folders, pop-outs and reminders",
+  "author": "Overnote",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "test": "node tests/smoke.js && node tests/features.js"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.stickynotes.app",
+    "productName": "Overnote",
+    "files": [
+      "main.js",
+      "backup-tools.js",
+      "preload.js",
+      "index.html",
+      "alarm.html",
+      "alarm-preload.js",
+      "assets/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "artifactName": "Overnote-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "Overnote-Portable.${ext}"
+    },
+    "asarUnpack": [
+      "assets/**/*"
+    ]
+  }
+}

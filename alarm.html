@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self' data:">
+<title>Important reminder</title>
+<style>
+:root { color-scheme:light; font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; }
+* { box-sizing:border-box; }
+body { background:#fff8e8; color:#2c251a; margin:0; height:100vh; display:flex; flex-direction:column; padding:clamp(10px,3vh,20px) clamp(12px,4vw,22px); gap:9px; overflow-y:auto; }
+.head { display:flex; align-items:center; gap:11px; }
+.bell { display:grid; place-items:center; width:47px; height:47px; border-radius:14px; background:#ffd8a3; font-size:26px; }
+.small { font-size:12px; font-weight:750; color:#9b4319; letter-spacing:.045em; text-transform:uppercase; }
+#name { font-size:21px; font-weight:750; overflow-wrap:anywhere; }
+#text { font-size:15px; line-height:1.45; overflow-wrap:anywhere; max-height:130px; min-height:25px; overflow-y:auto; flex:1 1 auto; white-space:pre-wrap; }
+#time { color:#635746; font-size:12px; }
+.controls { margin-top:auto; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+button { border:1px solid #bd9f70; border-radius:8px; padding:11px 6px; background:#fffef9; color:inherit; font:600 12px inherit; cursor:pointer; }
+button:hover { background:#f8e3bd; }
+#done { background:#a94418; color:white; border-color:#91390d; }
+#done:hover { background:#873312; }
+.bottom { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:4px; }
+.link { background:transparent; border:0; text-decoration:underline; padding:5px; font-size:12px; }
+#status { font-size:11px; color:#5d563f; }
+@media (max-width:385px), (max-height:310px) {
+  .bell { width:36px; height:36px; border-radius:10px; font-size:20px; }
+  #name { font-size:17px; }
+  .controls { gap:5px; }
+  .controls button { padding:7px 3px; font-size:11px; }
+  .bottom { flex-wrap:wrap; row-gap:2px; }
+  .link { padding:3px; }
+}
+</style></head>
+<body>
+  <div class="head"><div class="bell" aria-hidden="true">🔔</div><div><div class="small">Important reminder</div><div id="name">Your note</div></div></div>
+  <div id="text" role="alert">A reminder is due.</div><div id="time"></div>
+  <div class="controls"><button id="snooze10">Snooze 10m</button><button id="snooze60">Snooze 1h</button><button id="done" title="Close and delete this reminder">✓ Done</button></div>
+  <div class="bottom"><button class="link" id="open">Open note</button><button class="link" id="mute">Silence sound</button><div id="status" role="status">Ringing…</div></div>
+<script>
+// Important reminders can play the user's chosen MP3/WAV/OGG on a loop.
+// If the file is unavailable or fails to decode, use the bundled synthesized chime.
+let ctx, interval, audio, muted=false, alarmVolume=.75, soundConfig;
+function chime() {
+  if(muted) return;
+  try {
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if(ctx.state==='suspended') ctx.resume();
+    const now=ctx.currentTime + 0.03;
+    for (const [i,frequency] of [784, 1046, 784].entries()) {
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type='sine'; osc.frequency.value=frequency;
+      const t=now+i*0.25;
+      gain.gain.setValueAtTime(0.0001,t);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0001, .14*alarmVolume),t+0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+      osc.connect(gain).connect(ctx.destination); osc.start(t); osc.stop(t+0.23);
+    }
+  } catch (err) { document.getElementById('status').textContent='Audio unavailable; check Windows sound settings.'; }
+}
+function startChime() { if(muted) return; clearInterval(interval); chime(); interval=setInterval(chime,4000); }
+async function startSound() {
+  if(muted) return;
+  if(soundConfig?.src) {
+    if(!audio) { audio = new Audio(soundConfig.src); audio.loop = true; audio.volume=alarmVolume; }
+    try { await audio.play(); document.getElementById('status').textContent='Ringing · custom sound'; return; }
+    catch(err) { audio.pause(); audio = null; document.getElementById('status').textContent='Custom audio unavailable; playing chime'; }
+  }
+  startChime();
+}
+function silence() {
+  muted=true; clearInterval(interval); if(audio) audio.pause(); ctx?.suspend();
+  document.getElementById('status').textContent='Sound silenced';
+  document.getElementById('mute').textContent='Play sound';
+}
+window.alarmApi.getSound().then(info => {
+  soundConfig = info; alarmVolume = Math.max(0, Math.min(1, Number(info.volume) || 0));
+  startSound();
+}).catch(() => startChime());
+window.alarmApi.onDetail(d => {
+  document.getElementById('name').textContent=d.noteTitle;
+  document.getElementById('text').textContent=d.text;
+  document.getElementById('time').textContent='Due '+new Date(d.at).toLocaleString();
+});
+async function action(name,minutes) { if(name!=='open-note') silence(); const ok=await window.alarmApi.action(name,minutes); if(!ok) document.getElementById('status').textContent='Could not update reminder; try again'; }
+document.getElementById('snooze10').onclick=()=>action('snooze',10);
+document.getElementById('snooze60').onclick=()=>action('snooze',60);
+document.getElementById('done').onclick=()=>action('dismiss');
+document.getElementById('open').onclick=()=>action('open-note');
+document.getElementById('mute').onclick=()=>{if(muted){muted=false;document.getElementById('status').textContent='Ringing…';document.getElementById('mute').textContent='Silence sound';startSound();}else silence();};
+window.addEventListener('beforeunload',()=>{ clearInterval(interval); if(audio) { audio.pause(); audio.src=''; } ctx?.close(); });
+</script></body></html>

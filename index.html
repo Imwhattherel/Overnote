@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Overnote</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; media-src 'self' data:">
+<style>
+  :root { --paper:#f6e27a; --fs:15px; --font:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+    --ink:color-mix(in srgb,var(--paper) 10%,#1d1a12); --bar:color-mix(in srgb,var(--paper) 80%,#000); --hair:color-mix(in srgb,var(--paper) 62%,#000); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:transparent; font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; color:var(--ink); overflow:hidden; }
+  body { padding:10px; }
+  #note { position:relative; height:100%; display:flex; flex-direction:column; background:var(--paper); border-radius:9px 9px 3px 9px; overflow:hidden;
+    box-shadow:0 8px 22px rgba(0,0,0,.30),0 1px 3px rgba(0,0,0,.25); transition:background .2s; }
+  #note::after { content:""; position:absolute; right:0; bottom:0; width:22px; height:22px; pointer-events:none;
+    background:linear-gradient(135deg,transparent 50%,var(--hair) 50%); box-shadow:-2px -2px 4px rgba(0,0,0,.12); border-top-left-radius:4px; }
+  #bar { display:flex; align-items:flex-end; background:var(--bar); height:36px; padding:0 4px 0 6px; -webkit-app-region:drag; transition:background .2s; }
+  #main { display:flex; flex:1; min-height:0; }
+  #side { display:flex; flex-direction:column; width:var(--tw,120px); flex-shrink:0; background:var(--bar); padding:8px 0 8px 6px; gap:6px; transition:background .2s; }
+  #tabs { display:flex; flex-direction:column; gap:3px; flex:1; min-height:0; overflow-y:auto; scrollbar-width:none; }
+  #tabs::-webkit-scrollbar { display:none; }
+  .folder-section { display:flex; flex-direction:column; flex-shrink:0; min-width:0; gap:3px; }
+  .folder-head { border:0; background:transparent; color:inherit; font:inherit; display:flex; align-items:center; gap:3px; text-align:left; position:relative;
+    width:100%; padding:7px 7px 10px 2px; cursor:pointer; min-width:0; opacity:.87; }
+  .folder-head:hover,.folder-head.drop { background:rgba(255,255,255,.26); border-radius:5px; opacity:1; }
+  .folder-arrow { width:12px; flex-shrink:0; display:inline-block; font-size:12px; transition:transform .12s; }
+  .folder-head[aria-expanded="false"] .folder-arrow { transform:rotate(-90deg); }
+  .folder-name { font-size:11px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; }
+  .folder-count { font-size:10px; opacity:.65; flex-shrink:0; }
+  .folder-line { position:absolute; left:3px; right:8px; bottom:3px; border-top:2px solid var(--folder-accent,currentColor); opacity:.85; }
+  .folder-color { width:9px;height:9px;border-radius:50%;background:var(--folder-accent);flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,.15) }
+  .folder-notes { display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .folder-notes[hidden] { display:none; }
+  .folder-empty { opacity:.5; font-size:10px; padding:5px 8px; font-style:italic; pointer-events:none; }
+  .folder-section .tab { margin-left:5px; padding-left:7px; }
+  #folderEditor { margin-right:8px; display:flex; gap:3px; align-items:center; flex-wrap:wrap; }
+  #folderEditor[hidden] { display:none; }
+  #folderInput { flex:1; min-width:45px; width:100%; background:#fffef0; border:1px solid var(--hair); border-radius:5px; padding:5px; font:inherit; font-size:11.5px; }
+  .folder-save { background:rgba(255,255,255,.4); border:1px solid var(--hair); color:inherit; cursor:pointer; padding:4px 6px; border-radius:5px; font-size:11px; }
+  #addfolder { font-size:11.5px; }
+  .newtab-row {display:flex;gap:0;min-width:0;margin-right:8px;}
+  .newtab-row #add {flex:1;min-width:0;margin-right:0;border-radius:7px 0 0 7px;padding-right:2px;}
+  .newtab-row #add svg {display:none;}
+  .newtab-row #addMenu {flex-shrink:0;margin-right:0;border-left:0;border-radius:0 7px 7px 0;padding:0 6px;}
+  .newtab-row #addMenu[aria-expanded="true"] {background:rgba(255,255,255,.4);opacity:1;}
+  #importToast {position:absolute;bottom:15px;right:15px;max-width:calc(100% - 30px);padding:8px 12px;
+    border-radius:7px;background:#fff8df;color:#24211c;border:1px solid #a89b6d;box-shadow:0 3px 15px #0003;
+    z-index:30;font-size:12px;font-weight:600;pointer-events:none;overflow-wrap:anywhere;}
+  #importToast[hidden] {display:none;}
+  .tab.drop-before { box-shadow:inset 0 3px var(--ink); } .tab.drop-after { box-shadow:inset 0 -3px var(--ink); }
+
+  .addtab { display:flex; align-items:center; gap:6px; margin-right:8px; height:28px; padding:0 9px; border:1px dashed var(--hair); border-radius:7px; background:none; color:inherit; font:inherit; font-size:12.5px; cursor:pointer; opacity:.8; }
+  .addtab:hover { opacity:1; background:rgba(255,255,255,.25); }
+  #cur { flex:1; align-self:center; padding:0 6px 0 8px; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tab,.btn,#title { -webkit-app-region:no-drag; border:0; background:none; color:inherit; font:inherit; cursor:pointer; }
+  .tab { display:flex; align-items:center; height:30px; padding:0 10px; margin-right:8px; flex-shrink:0; font-size:12.5px; border-radius:7px 0 0 7px; background:var(--tc); color:color-mix(in srgb,var(--tc) 10%,#1d1a12); box-shadow:inset -2px 0 0 rgba(0,0,0,.14); }
+  .tab span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tab:hover { filter:brightness(1.07); }
+  .tab.on { height:34px; margin-right:0; font-weight:600; box-shadow:none; }
+  .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(0,0,0,.25); }
+  .tab input,#title input { width:96px; font:inherit; font-size:12.5px; color:inherit; background:rgba(255,255,255,.6); border:0; border-radius:3px; outline:2px solid var(--ink); padding:1px 4px; }
+  .btn { width:28px; height:28px; margin-bottom:3px; border-radius:6px; display:grid; place-items:center; opacity:.75; }
+  .btn:hover { opacity:1; background:rgba(255,255,255,.28); } .btn:disabled { opacity:.25; pointer-events:none; }
+  svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .grow { flex:1; height:100%; } #title { font-size:13px; font-weight:600; padding:0 8px 0 10px; margin-bottom:6px; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:text; }
+  body.pop #bar { -webkit-app-region:no-drag; cursor:grab; } body.pop #bar:active { cursor:grabbing; }
+  body.pop .main-only,body:not(.pop) .pop-only,body.pop #side,#side[hidden] { display:none !important; }
+  body.pop #main { width:100%; } body.pop #text,body.pop #view { width:100%; }
+  #rn { display:flex; gap:6px; padding:7px 10px; background:var(--bar); border-top:1px solid var(--hair); } #rn[hidden] { display:none; }
+  #rn input { flex:1; min-width:0; font:inherit; font-size:13px; padding:4px 8px; border:1px solid var(--hair); border-radius:5px; background:rgba(255,255,255,.7); color:var(--ink); outline:0; } #rn input:focus { border-color:var(--ink); }
+  .rb { font:inherit; font-size:12.5px; border:1px solid var(--hair); border-radius:5px; background:rgba(255,255,255,.35); color:inherit; padding:0 10px; cursor:pointer; }
+  #panel { display:grid; grid-template-rows:0fr; transition:grid-template-rows .2s; background:var(--bar); }
+  #panel.open { grid-template-rows:1fr; } #panel>div { overflow:hidden; }
+  #panel .in { padding:6px 14px 12px; display:flex; flex-direction:column; gap:9px; font-size:12.5px; max-height:50vh; overflow-y:auto; }
+  #panel label { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .alarm-audio-options { padding:8px; border:1px solid rgba(0,0,0,.15); border-radius:7px; display:flex; flex-direction:column; gap:7px; background:rgba(255,255,255,.15); }
+  .alarm-audio-options strong { font-size:12px; }
+  .alarm-audio-options .sound-buttons { display:flex; flex-wrap:wrap; gap:5px; }
+  .alarm-audio-options button { cursor:pointer; font:inherit; font-size:11.5px; border:1px solid #756a4b; background:#fffaf0; border-radius:5px; padding:5px 8px; color:#272016; }
+  .alarm-audio-options button:hover { background:#f4e6bf; }
+  #alarmSoundName { font-size:11px; overflow-wrap:anywhere; opacity:.9; }
+  .alarm-audio-options label { flex-wrap:wrap; }
+  .alarm-audio-options input[type=range] { flex:1; min-width:70px; max-width:150px; }
+  .alarm-audio-options output { min-width:33px; text-align:right; }
+  #alarmAudioStatus { font-size:11px; min-height:1em; }
+  #panel select { font:inherit; width:150px; } #panel input[type=range] { width:150px; accent-color:var(--ink); }
+  .row { display:flex; gap:8px; } .row button { flex:1; padding:5px; font:inherit; font-size:12.5px; cursor:pointer; border:1px solid var(--hair); border-radius:5px; background:rgba(255,255,255,.3); color:inherit; }
+
+  .features-panel { border:1px solid rgba(0,0,0,.2);background:rgba(255,255,255,.14);border-radius:7px;padding:8px;display:flex;flex-direction:column;gap:7px; }
+  .features-panel > strong { font-size:12px; }
+  .features-panel button { border:1px solid #756a4b;background:#fffaf0;color:#272016;border-radius:5px;padding:5px 7px;cursor:pointer;font:inherit;font-size:11.5px; }
+  .features-panel button:hover { background:#f4e6bf; }
+  .features-panel select,.features-panel input[type=text],.features-panel input[type=password] { flex:1;min-width:70px;width:100%;font:inherit;font-size:11.5px;padding:5px;border-radius:4px;border:1px solid #a29a81;background:#fffdf3;color:#292016; }
+  .features-panel label { display:flex !important;flex-wrap:wrap;gap:5px;justify-content:flex-start !important;align-items:center; }
+  .feature-buttons {display:flex;gap:5px;flex-wrap:wrap;} .feature-row {display:flex;align-items:center;gap:5px;flex-wrap:wrap;} .feature-row>* {min-width:0;}
+  .feature-help { opacity:.8;line-height:1.4;font-size:10.5px;overflow-wrap:anywhere; }
+  .feature-status {font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:14px;}
+  #trashList,#shareList {max-height:155px;overflow-y:auto;border-radius:5px;display:flex;flex-direction:column;gap:3px;}
+  .feature-item {padding:5px 4px;border-bottom:1px solid rgba(0,0,0,.15);display:flex;align-items:center;flex-wrap:wrap;gap:5px;}
+  .feature-item .label {flex:1;min-width:80px;font-size:11.5px;overflow-wrap:anywhere;}
+  .feature-item small {display:block;font-size:10px;opacity:.75;}
+  #cloudSettings[hidden],#sharePanel[hidden],#backupLocalRow[hidden],#backupDiscordRow[hidden],#backupGithubRow[hidden] {display:none !important;}
+  #text { flex:1; min-width:0; resize:none; border:0; outline:0; background:transparent; padding:12px 16px 20px; font-family:var(--font); font-size:var(--fs); line-height:1.55; color:var(--ink); }
+  #text::placeholder { color:color-mix(in srgb,var(--ink) 40%,transparent); }
+  #menu { position:fixed; z-index:9; min-width:150px; background:#fffdf8; color:#222; border-radius:8px; padding:5px; box-shadow:0 6px 20px rgba(0,0,0,.35); font-size:12.5px; }
+  #menu button { display:block; width:100%; text-align:left; border:0; background:none; font:inherit; padding:6px 9px; border-radius:5px; cursor:pointer; color:inherit; }
+  #menu button:hover { background:#eee8d6; } #menu .sws { display:flex; gap:6px; padding:7px 9px 5px; border-top:1px solid #e5dfcc; margin-top:4px; }
+  .sw { width:18px; height:18px; border-radius:50%; border:0; padding:0; cursor:pointer; box-shadow:inset 0 0 0 1px rgba(0,0,0,.25); }
+  .sw.on { outline:2px solid #222; outline-offset:2px; }
+  .btn.on { opacity:1; background:rgba(255,255,255,.35); }
+  .tab { user-select:none; } .tab.drag { opacity:.85; position:relative; z-index:2; box-shadow:0 3px 10px rgba(0,0,0,.35); }
+  body.tabdrag, body.tabdrag * { cursor:grabbing !important; user-select:none; }
+  #tear { position:absolute; left:50%; top:46px; transform:translateX(-50%); z-index:5; background:var(--ink); color:var(--paper); padding:5px 14px; border-radius:99px; font-size:12px; pointer-events:none; box-shadow:0 3px 10px rgba(0,0,0,.35); } #tear[hidden] { display:none; }
+  #view { flex:1; min-width:0; overflow:auto; padding:10px 16px 24px; font-family:var(--font); font-size:var(--fs); line-height:1.5; color:var(--ink); } #view[hidden] { display:none; }
+  #view p { margin:0 0 .3em; } #view .gap { height:.55em; }
+  #view h1,#view h2,#view h3 { margin:.35em 0 .25em; line-height:1.2; } #view h1 { font-size:1.5em; } #view h2 { font-size:1.28em; } #view h3 { font-size:1.12em; }
+  #view mark { background:rgba(255,255,255,.6); padding:0 2px; border-radius:3px; color:inherit; }
+  #view code { font-family:"Cascadia Code",Consolas,Menlo,monospace; font-size:.9em; background:rgba(0,0,0,.09); padding:1px 4px; border-radius:4px; }
+  #view pre { background:rgba(0,0,0,.1); padding:8px 10px; border-radius:6px; overflow:auto; margin:.4em 0; } #view pre code { background:none; padding:0; }
+  #view blockquote { margin:.3em 0; padding:1px 10px; border-left:3px solid var(--hair); opacity:.85; }
+  #view ul,#view ol { margin:.2em 0; padding-left:1.4em; } #view li { margin-left:calc(var(--lv,0)*1.2em); }
+  #view li.task { display:flex; gap:7px; align-items:baseline; list-style:none; margin-left:calc(var(--lv,0)*1.2em - 1.3em); }
+  #view li.task input { margin:0; accent-color:var(--ink); cursor:pointer; transform:translateY(2px); } #view li.done span { text-decoration:line-through; opacity:.55; }
+  #view a { color:inherit; text-decoration:underline; cursor:pointer; } #view hr { border:0; border-top:1px solid var(--hair); margin:.6em 0; }
+  #search { position:absolute; top:40px; left:9px; right:9px; max-height:74%; display:flex; flex-direction:column; z-index:8; background:#fffdf6; color:#24211c; border:1px solid rgba(0,0,0,.16); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.25); overflow:hidden; }
+  #search[hidden], #rp[hidden], #docktarget[hidden] { display:none; }
+  .search-head { display:flex; align-items:center; gap:6px; padding:8px; border-bottom:1px solid #ddd4bf; }
+  #searchinput { flex:1; min-width:0; font:inherit; font-size:13px; padding:6px 8px; border:1px solid #c2b69a; border-radius:5px; outline:0; background:white; color:#24211c; }
+  #searchclose { background:none; border:0; font-size:20px; cursor:pointer; color:#24211c; }
+  #searchresults { overflow:auto; min-height:46px; max-height:300px; }
+  .result { display:block; width:100%; border:0; border-bottom:1px solid #ebe4d6; background:transparent; padding:9px 12px; text-align:left; cursor:pointer; color:#24211c; }
+  .result:hover,.result:focus { outline:none; background:#f2ead3; }
+  .result strong { display:block; font-size:13px; margin-bottom:2px; }
+  .result span { display:block; font-size:12px; line-height:1.35; opacity:.8; overflow-wrap:anywhere; }
+  #searchstatus { padding:7px 12px; font-size:11.5px; background:#f4eee0; color:#635747; }
+  #calendarPanel { position:absolute; z-index:11; inset:39px 8px 8px; display:flex; flex-direction:column; min-height:0; overflow:hidden; padding:10px; gap:3px; background:#fffdf5; color:#24211c; border:1px solid #c9bfa3; border-radius:9px; box-shadow:0 7px 25px rgba(0,0,0,.3); font-size:12px; }
+  #calendarPanel[hidden] { display:none !important; }
+  .cal-month-section { flex:0 0 auto; min-width:0; }
+  .cal-detail-section { display:flex; flex:1 1 auto; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
+
+  .cal-head { display:flex; align-items:center; gap:5px; padding-bottom:6px; }
+  .cal-head strong { flex:1; text-align:center; font-size:13px; }
+  #calendarPanel button { cursor:pointer; font:inherit; color:inherit; }
+  .cal-nav { border:1px solid #c9bfa3; border-radius:5px; background:white; min-width:25px; min-height:25px; }
+  .cal-nav:hover { background:#f4eacb; }
+  #calToday { padding:0 6px; }
+  #calClose { border:0; background:transparent; font-size:21px !important; line-height:1; padding:0 3px; }
+  #calOverdue { padding:4px 6px; margin:0 0 5px; border:1px solid #d6af63; border-radius:5px; background:#fff0cc; text-align:left; font-size:11.5px !important; }
+  #calOverdue[hidden] { display:none; }
+  #calWeekdays,#calGrid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
+  #calWeekdays { margin-bottom:3px; }
+  #calWeekdays span { text-align:center; font-size:10px; color:#6e6554; }
+  #calGrid { flex-shrink:0; }
+  #calGrid .cal-day { position:relative; display:flex; align-items:flex-start; justify-content:center; padding:5px 2px 3px; min-width:0; min-height:30px; border:1px solid #e4dcc9; border-radius:5px; background:white; font-size:11px; }
+  #calGrid .cal-day:hover { background:#f6ecca; }
+  #calGrid .cal-day.today { border-color:#ba9a4d; font-weight:700; }
+  #calGrid .cal-day.selected { background:#eddda9; border-color:#9d8444; outline:1px solid #9d8444; }
+  #calGrid .cal-day.has-reminders { font-weight:700; }
+  .cal-count { position:absolute; bottom:1px; right:2px; padding:0 3px; border-radius:6px; background:#e1cc91; font-size:9px; line-height:12px; }
+  .cal-empty { min-height:30px; }
+  .cal-agenda-head { display:flex; justify-content:space-between; align-items:center; gap:5px; margin:7px 0 4px; font-weight:650; }
+  .cal-agenda-head small { font-size:10px; font-weight:400; color:#6a5a42; }
+  #calAgenda { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; border-top:1px solid #e6ddca; padding:4px 0; }
+  .cal-event { width:100%; display:flex; gap:6px; align-items:center; padding:6px 5px; border:0; border-bottom:1px solid #efe8da; border-radius:3px; background:transparent; text-align:left; }
+  .cal-event:hover { background:#f2e9d1; }
+  .cal-event .cal-color { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .cal-event .cal-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cal-event .cal-time { color:#6d624f; font-size:10.5px; white-space:nowrap; }
+  .cal-event.done .cal-name { text-decoration:line-through; opacity:.65; }
+  .cal-agenda-empty { padding:8px 3px; color:#756b59; font-size:11.5px; }
+  .cal-add { flex:0 0 auto; padding:6px; background:#e9d79c; border:1px solid #bb9c53; border-radius:5px; width:100%; margin-top:5px; }
+  .cal-add:disabled { opacity:.45; cursor:default !important; }
+  #rp { position:absolute; z-index:10; top:39px; left:8px; right:8px; max-height:calc(100% - 54px); overflow-y:auto; padding:12px; background:#fffdf5; color:#24211c; border:1px solid #c9bfa3; border-radius:9px; box-shadow:0 7px 25px rgba(0,0,0,.3); font-size:12px; }
+  #rp button,#rp select,#rp input { font:inherit; font-size:12.5px; border:1px solid #c9bfa3; border-radius:5px; padding:6px 8px; background:white; color:#24211c; }
+  #rp button { cursor:pointer; } #rp button:hover { background:#f4eacb; }
+  #rp .rhead { display:flex; align-items:center; justify-content:space-between; font-weight:700; font-size:13px; margin-bottom:8px; }
+  #rp .rhead button { border:0; background:transparent; font-size:20px; line-height:1; padding:1px 4px; }
+  #rp .rquick { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-bottom:10px; }
+  #rp label { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:7px 0; }
+  #rp input[type=datetime-local] { flex:1; min-width:0; max-width:185px; }
+  #rp .ractions { display:flex; justify-content:flex-end; gap:6px; margin-top:10px; }
+  #rp #rset { background:#e9d79c; font-weight:650; }
+  #rp .rpriority { justify-content:flex-start; padding:7px 8px; background:#fff4dc; border:1px solid #e4c88b; border-radius:6px; cursor:pointer; }
+  #rp .rpriority input { width:16px; height:16px; flex-shrink:0; accent-color:#aa4c14; }
+  #rp .rpriority span { flex:1; line-height:1.35; }
+  .rem-row.important { border-left:4px solid #b44b17; background:#fff4e5; }
+  .cal-event-row.important { border-left:3px solid #bb5820; background:#fff3e3; }
+  #rp textarea { width:100%; min-height:52px; max-height:100px; padding:7px; resize:vertical; font:inherit; background:white; color:#24211c; border:1px solid #c9bfa3; border-radius:5px; }
+  #rp .r-caption { display:block; margin:7px 0 3px; font-weight:650; }
+  #rnote { display:block; background:#f2e6bf; border-radius:4px; padding:5px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #rlist { display:flex; flex-direction:column; gap:5px; margin-top:7px; max-height:130px; overflow-y:auto; }
+  .rem-row { display:flex; gap:5px; align-items:center; border:1px solid #e6dabb; border-radius:6px; padding:4px; background:#fffaf0; }
+  .rem-details { flex:1; min-width:0; border:0 !important; background:transparent !important; text-align:left; padding:3px !important; }
+  .rem-details strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
+  .rem-details small { display:block; opacity:.75; }
+  .rem-delete,.cal-delete { border:1px solid #e0c5b5 !important; background:#fff4eb !important; color:#8b332a !important; cursor:pointer; }
+  .rem-delete { padding:5px 8px !important; }
+  #selectionReminder { position:absolute; z-index:7; padding:7px 10px; border:1px solid #9d884f; background:#fff5d4; color:#40320f; border-radius:16px; font:600 12px/1.2 inherit; box-shadow:0 3px 9px #0003; cursor:pointer; }
+  #selectionReminder[hidden] { display:none; }
+  .cal-event-row { display:flex; align-items:stretch; gap:5px; }
+  .cal-event-row .cal-event { flex:1; min-width:0; }
+  .cal-delete { border-radius:5px; padding:0 9px; font-size:15px; }
+  #rstate { margin-top:9px; line-height:1.4; font-size:11.5px; color:#685d48; overflow-wrap:anywhere; }
+  #dueBanner { display:flex; flex-wrap:wrap; gap:5px; align-items:center; padding:7px 10px; background:#fff2cc; color:#40310a; font-size:12px; border-bottom:1px solid #e0c779; }
+  #dueBanner[hidden] { display:none; }
+  #dueBanner strong { flex:1; min-width:85px; }
+  #dueBanner button { border:1px solid #b9a05c; border-radius:5px; background:#fffaf0; padding:4px 7px; color:#40310a; cursor:pointer; font:inherit; }
+  #dueBanner button:hover { background:#f3dc9f; }
+  #remind.due { background:#ffdf91; opacity:1; }
+  .tab .remdot { margin-left:auto; font-size:13px; padding-left:4px; flex-shrink:0; }
+  #docktarget { position:absolute; inset:5px; border:3px dashed #304e3b; border-radius:8px; z-index:7; pointer-events:none; background:rgba(255,255,255,.35); display:grid; place-items:center; font-size:16px; font-weight:700; }
+  /* Small windows: protect the note editor and let forms wrap naturally. */
+  @media (max-width:410px) {
+    body { padding:6px; }
+    #side { width:min(var(--tw,120px), 96px); padding-left:4px; }
+    .tab { padding:0 6px; margin-right:5px; }
+    #bar { padding-left:3px; }
+    #cur { min-width:0; padding:0 2px 0 4px; }
+    .btn { width:26px; height:27px; flex-shrink:0; }
+    #text,#view { padding-left:10px; padding-right:10px; }
+    #rp { left:4px; right:4px; padding:8px; }
+    #rp label:not(.rpriority) { flex-wrap:wrap; }
+    #rp input[type=datetime-local] { max-width:none; width:100%; }
+    #rp .rquick { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    #calendarPanel { inset:38px 4px 4px; padding:6px; }
+    .cal-head { gap:3px; }
+    .cal-head strong { font-size:12px; }
+    #calGrid .cal-day { min-height:26px; padding:3px 1px 2px; }
+    #calToday { padding:0 4px; }
+    .cal-add { font-size:11px !important; }
+  }
+  @media (max-width:295px) {
+    #side { width:72px; }
+    #bar .btn { width:23px; }
+    #cur { font-size:11px; }
+    #rp .rquick { grid-template-columns:1fr; }
+  }
+  /* Wide, short note windows: give the month and its agenda separate columns,
+     so reminders remain visible rather than clipped below the calendar. */
+  @media (min-width:600px) and (max-height:520px) {
+    #calendarPanel { display:grid; grid-template-columns:minmax(0,1.03fr) minmax(0,1fr); gap:11px; }
+    .cal-month-section { min-width:0; align-self:start; }
+    .cal-detail-section { height:100%; }
+    .cal-agenda-head { margin-top:0; }
+    #calGrid .cal-day { min-height:29px; }
+  }
+  /* Short portrait windows: keep the month as compact as possible while
+     reserving space for an independently scrolling reminders list. */
+  @media (max-height:420px) and (max-width:599px) {
+    #calendarPanel { padding:5px; }
+    .cal-head { padding-bottom:3px; }
+    #calGrid .cal-day { min-height:21px; padding:2px 1px 1px; font-size:10px; }
+    #calWeekdays { margin-bottom:1px; }
+    .cal-agenda-head { margin:3px 0 1px; }
+    .cal-add { padding:4px; margin-top:2px; }
+  }
+  /* At tiny heights a full month and an agenda cannot both fit. Let the
+     whole panel scroll naturally, rather than visually clipping the action bar. */
+  @media (max-height:355px) and (max-width:599px), (max-height:275px) {
+    #calendarPanel { display:flex; flex-direction:column; overflow-y:auto; overscroll-behavior:contain; }
+    .cal-month-section { flex:0 0 auto; }
+    .cal-detail-section { flex:0 0 auto; height:auto; min-height:80px; overflow:visible; }
+    #calAgenda { flex:0 0 auto; min-height:38px; overflow:visible; }
+  }
+    @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style></head>
+<body>
+<div id="note">
+  <div id="bar">
+    <div id="cur" class="main-only"></div>
+    <div id="title" class="pop-only" title="Double-click to rename"></div><div class="grow pop-only"></div>
+    <button class="btn" id="find" title="Search all notes (Ctrl+F)"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.7"/><path d="m10.5 10.5 4 4"/></svg></button>
+    <button class="btn" id="remind" title="Set reminder for this note"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.8 1.6"/></svg></button>
+    <button class="btn main-only" id="calendar" title="All reminders calendar (Ctrl+Shift+M)" aria-label="Open reminders calendar"><svg viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="13" height="11" rx="1.5"/><path d="M4.5 1.5v4M11.5 1.5v4M1.5 7h13M5 10h2M9 10h2"/></svg></button>
+    <button class="btn" id="eye" title="Preview markdown (Ctrl+E)"><svg viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></button>
+    <button class="btn main-only" id="gear" title="Settings"><svg viewBox="0 0 16 16"><path d="M2 4.5h6.5M11.5 4.5H14M2 11.5h2.5M7.5 11.5H14"/><circle cx="10" cy="4.5" r="1.5"/><circle cx="6" cy="11.5" r="1.5"/></svg></button>
+    <button class="btn main-only" id="hide" title="Hide all notes to the system tray"><svg viewBox="0 0 16 16"><path d="M3.5 8h9"/></svg></button>
+    <button class="btn pop-only" id="dot" title="Note color"><span class="dot" id="dotc"></span></button>
+  </div>
+  <section id="rp" hidden aria-label="Reminder options">
+    <div class="rhead"><span>Reminder from this note</span><button id="rclose" title="Close reminder options" aria-label="Close">×</button></div>
+    <span class="r-caption">Tab (automatically linked)</span><div id="rnote"></div>
+    <label class="r-caption" for="rtext">Reminder text (highlighted passage)</label>
+    <textarea id="rtext" maxlength="500" placeholder="Highlight text in the note, or type a reminder here."></textarea>
+    <div class="rquick"><button data-quick="10">In 10 min</button><button data-quick="60">In 1 hour</button><button data-quick="morning">Tomorrow 9 AM</button></div>
+    <label>When <input id="remindAt" type="datetime-local" aria-label="Reminder date and time"></label>
+    <label>Repeat <select id="rrepeat" aria-label="Repeat reminder"><option value="none">One time</option><option value="daily">Every day</option><option value="weekly">Every week</option></select></label>
+    <label class="rpriority"><input id="rimportant" type="checkbox" aria-label="Important reminder with ringing alarm"><span><strong>🔔 Important — ring alarm</strong><br>Open a ringing alarm with Snooze and Done until handled.</span></label>
+    <div class="ractions"><button id="rnew">New reminder</button><button id="rset">Add reminder</button></div>
+    <div class="r-caption">Reminders on this tab</div><div id="rlist" aria-label="Existing reminders"></div>
+    <div id="rstate" role="status">Reminders use Windows notifications while Overnote is running.</div>
+  </section>
+  <section id="calendarPanel" class="main-only" hidden aria-label="Reminders calendar">
+    <div class="cal-month-section">
+      <div class="cal-head"><button class="cal-nav" id="calPrev" title="Previous month" aria-label="Previous month">‹</button><strong id="calMonth"></strong><button class="cal-nav" id="calNext" title="Next month" aria-label="Next month">›</button><button class="cal-nav" id="calToday" title="Go to today">Today</button><button id="calClose" title="Close calendar" aria-label="Close reminders calendar">×</button></div>
+      <button id="calOverdue" hidden></button>
+      <div id="calWeekdays" aria-hidden="true"></div>
+      <div id="calGrid" aria-label="Days in month"></div>
+    </div>
+    <div class="cal-detail-section">
+      <div class="cal-agenda-head"><span id="calDayTitle"></span><small id="calDayCount"></small></div>
+      <div id="calAgenda" aria-label="Reminders on selected day"></div>
+      <button class="cal-add" id="calAdd">Set reminder for this note on this day</button>
+    </div>
+  </section>
+  <div id="dueBanner" hidden role="alert"><strong id="dueLabel">⏰ Reminder due</strong><button id="snooze10">Snooze 10m</button><button id="snooze60">1 hour</button><button id="dismissReminder">Done</button></div>
+  <div id="search" hidden><div class="search-head"><input id="searchinput" type="search" placeholder="Search every note, including pop-outs…" aria-label="Search all notes"><button id="searchclose" title="Close search">×</button></div><div id="searchresults"></div><div id="searchstatus">Type to find notes</div></div>
+  <div id="docktarget" hidden>Release to dock this note</div>
+  <button id="selectionReminder" hidden type="button" title="Create reminder for highlighted text">⏰ Remind me</button>
+  <div id="rn" hidden><input id="rni" maxlength="40" placeholder="Tab name" spellcheck="false"><button class="rb" id="rnok">Save</button><button class="rb" id="rnx">Cancel</button></div>
+  <div id="panel" class="main-only"><div><div class="in">
+    <strong style="font-size:14px;letter-spacing:.02em;">Overnote settings</strong>
+    <label>Main window monitor <select id="monitor"></select></label>
+    <label>Opacity <input type="range" id="opacity" min="0.3" max="1" step="0.05"></label>
+    <label>Text size <input type="range" id="fs" min="11" max="26" step="1"></label>
+    <label>Tab list width <input type="range" id="tw" min="70" max="220" step="5"></label>
+    <label>Font <select id="font"><option value="clean">Clean</option><option value="hand">Handwritten</option><option value="mono">Monospace</option></select></label>
+    <label>Stay on top <input type="checkbox" id="onTop"></label>
+    <label>Start with Windows <input type="checkbox" id="startup"></label>
+    <div class="alarm-audio-options" aria-label="Important reminder alarm sound settings">
+      <strong>🔔 Important reminder alarm sound</strong>
+      <div id="alarmSoundName">Built-in chime</div>
+      <div class="sound-buttons"><button id="chooseAlarmSound" type="button">Choose audio file…</button><button id="resetAlarmSound" type="button">Use default</button><button id="testAlarmSound" type="button">▶ Test sound</button></div>
+      <label>Alarm volume <input id="alarmVolume" type="range" min="0" max="100" step="5" aria-label="Alarm volume"><output id="alarmVolumeValue">75%</output></label>
+      <div id="alarmAudioStatus" role="status">MP3, WAV, or OGG, up to 15 MB. Plays for Important reminders only.</div>
+    </div>
+
+    <div class="features-panel" id="shareFeatures">
+      <strong>↗ Share notes (export / import)</strong>
+      <div class="feature-buttons"><button id="shareToggle">Choose notes to export…</button><button id="shareImport">Import shared notes…</button></div>
+      <div id="sharePanel" hidden>
+        <div class="feature-help">Check the notes you want to share. Window positions and local settings aren't exported.</div>
+        <div id="shareList" aria-label="Notes to export"></div>
+        <label><input type="checkbox" id="shareReminders"> Include reminders (they may ring on the recipient's PC)</label>
+        <button id="shareExport">Export selected notes (.json)</button>
+      </div>
+      <div id="shareStatus" class="feature-status" role="status"></div>
+    </div>
+    <div class="features-panel" id="trashFeatures">
+      <strong>♻ Recently deleted notes <span id="trashCount"></span></strong>
+      <div class="feature-help">Deleted notes stay here for 30 days. Restore a note or permanently delete it.</div>
+      <div id="trashList" aria-label="Deleted notes"></div>
+      <div class="feature-buttons"><button id="trashRefresh">Refresh trash</button><button id="trashEmpty">Empty trash forever…</button></div>
+      <div id="trashStatus" class="feature-status" role="status"></div>
+    </div>
+    <div class="features-panel" id="backupFeatures">
+      <strong>▣ Automatic backups and restore</strong>
+      <div class="feature-help">A local backup is saved when Overnote starts (if due), then daily while it's running. Backups are kept locally for up to 30 days (maximum 50 copies). Cloud uploads are optional.</div>
+      <div class="feature-row"><button id="backupNow">Save backup now</button><button id="backupOpenFolder">Open backup folder</button><button id="backupRestore">Restore from backup…</button></div>
+      <div id="backupSavedConnections" class="feature-help" aria-live="polite">Saved connections: Discord — not set · GitHub — not set</div>
+      <label>Backup destination <select id="backupTarget"><option value="local">Local folder</option><option value="discord">Discord webhook</option><option value="github">GitHub repository</option></select></label>
+      <div id="backupLocalRow"><div class="feature-row"><button id="backupChooseLocal">Choose local folder…</button><button id="backupResetLocal">Use default folder</button></div><div id="backupLocalLabel" class="feature-help"></div><div class="feature-help">Choose any local folder, including a OneDrive, Google Drive, or Dropbox-synced folder. Overnote also keeps safety backups in its own application-data folder.</div></div>
+      <div id="cloudSettings">
+        <label><input type="checkbox" id="backupCloudEnabled"> Upload daily backups to selected destination</label>
+        <div id="backupDiscordRow" hidden><label>Webhook URL <input id="backupWebhook" type="password" autocomplete="off" placeholder="Paste Discord webhook URL"></label><div class="feature-help" id="backupDiscordSaved"></div><div class="feature-help">⚠ Anyone who can access the Discord channel can download the backup (including note contents). Use a private channel.</div><button id="backupClearDiscord">Forget saved webhook</button></div>
+        <div id="backupGithubRow" hidden><label>Repository <input id="backupGithubRepo" type="text" placeholder="owner/private-repo"></label><label>Branch <input id="backupGithubBranch" type="text" placeholder="main"></label><label>Folder in repo <input id="backupGithubDir" type="text" placeholder="overnote-backups"></label><label>GitHub token <input id="backupGithubToken" type="password" autocomplete="off" placeholder="Fine-grained token · Contents: read/write"></label><div id="backupGithubSaved" class="feature-help"></div><div class="feature-help">⚠ Use a PRIVATE repo and a fine-grained token limited to that repo (Contents: Read &amp; write). Each backup creates a commit.</div><button id="backupClearGithub">Forget saved token</button></div>
+      </div>
+      <div class="feature-buttons"><button id="backupSaveSettings">Save backup settings</button></div>
+      <div class="feature-help">Remote backup credentials are saved separately using Windows encryption, not inside shared or backup files. The app does not download from Discord or GitHub automatically; download the JSON file first, then select Restore.</div>
+      <div id="backupLast" class="feature-help"></div><div id="backupStatus" class="feature-status" role="status"></div>
+    </div>
+    <div style="opacity:.7;font-size:11.5px;line-height:1.45">Markdown: # title · **bold** · *italic* · - list · - [ ] task · ==mark==<br>Ctrl+F search every note · Ctrl+E preview · Ctrl+B / Ctrl+I<br>Drag tabs into folder headings to organize them, or out to pop them out. Drag a pop-out onto the main window to dock it. Pop-outs and their monitor/position return after restart. Pop-outs show only their note, without the sidebar. Highlight text and click Remind (or Ctrl+Shift+R) to create independent reminders. Delete individual reminders in the calendar or reminder panel. Double-click to switch between edit and preview.</div>
+    <div style="opacity:.55;font-size:11px;text-align:right">Version 2.0.0</div>
+    <div class="row"><button id="del">Delete this tab</button><button id="quit">Quit app</button></div>
+  </div></div></div>
+  <div id="importToast" hidden role="status" aria-live="polite"></div>
+  <div id="tear" hidden>Release to pop out</div>
+  <div id="main">
+    <div id="side" class="main-only"><div id="tabs" aria-label="Note folders"></div>
+      <div id="folderEditor" hidden><input id="folderInput" maxlength="64" placeholder="Folder name" aria-label="Folder name"><button class="folder-save" id="folderSave" title="Save folder">Save</button><button class="folder-save" id="folderCancel" title="Cancel">×</button></div>
+      <button class="addtab" id="addfolder" title="Create a folder">＋ Folder</button>
+      <div class="newtab-row"><button class="addtab" id="add" title="Create a blank note (Ctrl+T)"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>New tab</button><button class="addtab" id="addMenu" title="New tab options (including import)" aria-label="New tab options" aria-haspopup="menu" aria-expanded="false">▾</button></div></div>
+    <textarea id="text" placeholder="Write something…  (Markdown works: # title, **bold**, - [ ] task)" spellcheck="false"></textarea>
+    <div id="view" hidden></div>
+  </div>
+</div>
+<script>
+const COLORS = ['#f6e27a','#a8e6b8','#f7b8c6','#a9d4f5','#cdb8f5','#fbc48c'];
+const FONTS = { clean:'"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif', hand:'"Segoe Print","Bradley Hand","Comic Sans MS",cursive', mono:'"Cascadia Code",Consolas,Menlo,monospace' };
+const me = new URLSearchParams(location.search).get('note') || null;
+const $ = id => document.getElementById(id);
+let D, pending = null, timer;
+const vis = () => D.tabs.filter(t => !t.popped);
+const folderOf = t => t.folderId || null;
+const folderLabel = id => id == null ? 'Unfiled' : (D.folders || []).find(f => f.id === id)?.name || 'Unfiled';
+const cur = () => me ? D.tabs.find(t => t.id === me) : (D.tabs.find(t => t.id === D.active && !t.popped) || vis()[0]);
+
+function queue(id, patch) { pending = { id, patch: { ...(pending?.id === id ? pending.patch : {}), ...patch } }; clearTimeout(timer); timer = setTimeout(flush, 200); }
+function flush() { clearTimeout(timer); if (pending) { api.update(pending.id, pending.patch); pending = null; } }
+window.addEventListener('beforeunload', flush);
+
+async function refresh() { flush(); D = await api.load(); if (!cur()) return; render(); fillMonitors(); }
+function paint(n) {
+  const r = document.documentElement.style, s = D.settings;
+  r.setProperty('--paper', n.color); r.setProperty('--tw', (s.tabWidth || 120) + 'px'); r.setProperty('--fs', s.fontSize + 'px'); r.setProperty('--font', FONTS[s.font] || FONTS.clean);
+  $('dotc').style.background = n.color;
+}
+function buildTab(t, selected) {
+  const b = document.createElement('div'); b.className = 'tab' + (t.id === selected.id ? ' on' : ''); b.dataset.id = t.id;
+  b.title = t.title + ' · drag to reorder, move to another folder, or pop out · double-click to rename';
+  b.onpointerdown = e => tabDown(e, t);
+  b.style.setProperty('--tc', t.color); b.innerHTML = '<span></span>'; b.querySelector('span').textContent = t.title;
+  const state = noteReminderStatus(t);
+  if (state !== 'none' && state !== 'done') {
+    const mark = document.createElement('span'); mark.className = 'remdot';
+    mark.textContent = state === 'due' ? '!' : '◷';
+    mark.title = state === 'due' ? 'Reminder due' : 'Reminder scheduled'; b.appendChild(mark);
+  }
+  b.onclick = () => { hideSelectionAction(); selectedSnippet = ''; D.active = t.id; api.setActive(t.id); render(); };
+  b.ondblclick = () => rename(t);
+  b.oncontextmenu = e => { e.preventDefault(); menu(t, e.clientX, e.clientY); };
+  return b;
+}
+function render() {
+  const n = cur(); document.body.className = me ? 'pop' : '';
+  $('side').hidden = !!me; // Every detached window contains only its own note, never the tab sidebar.
+  paint(n);
+  if (me) $('title').textContent = n.title;
+  else {
+    $('cur').textContent = n.title; $('tabs').innerHTML = '';
+    const groups = [{ id: null, name: 'Unfiled', collapsed: !!D.unfiledCollapsed }, ...(D.folders || [])];
+    for (const folder of groups) {
+      const group = document.createElement('section'); group.className = 'folder-section'; group.dataset.folderId = folder.id || '';
+      const header = document.createElement('button'); header.type = 'button'; header.className = 'folder-head';
+      header.setAttribute('aria-expanded', String(!folder.collapsed));
+      const assigned = D.tabs.filter(t => folderOf(t) === folder.id);
+      const count = assigned.filter(t => !t.popped).length;
+      header.title = folder.name + ' · ' + assigned.length + ' note(s) · click to ' + (folder.collapsed ? 'expand' : 'collapse') + ' · right-click for folder options';
+      header.style.setProperty('--folder-accent',folder.color || 'currentColor');
+      header.innerHTML = '<span class="folder-arrow" aria-hidden="true">▾</span><span class="folder-color" aria-hidden="true"></span><span class="folder-name"></span><span class="folder-count"></span><span class="folder-line" aria-hidden="true"></span>';
+      header.querySelector('.folder-name').textContent = folder.name;
+      header.querySelector('.folder-count').textContent = String(assigned.length);
+      header.onclick = async () => { await api.toggleFolder(folder.id); };
+      header.oncontextmenu = e => { e.preventDefault(); folderMenu(folder, e.clientX, e.clientY); };
+      group.appendChild(header);
+      const contents = document.createElement('div'); contents.className = 'folder-notes'; contents.hidden = folder.collapsed;
+      if (!folder.collapsed) {
+        vis().filter(t => folderOf(t) === folder.id).forEach(t => contents.appendChild(buildTab(t, n)));
+        if (!count) { const empty = document.createElement('div'); empty.className = 'folder-empty'; empty.textContent = 'No notes'; contents.appendChild(empty); }
+      }
+      group.appendChild(contents); $('tabs').appendChild(group);
+    }
+    $('tabs').querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+    $('opacity').value = D.settings.opacity; $('tw').value = D.settings.tabWidth || 120; $('fs').value = D.settings.fontSize; $('font').value = D.settings.font; $('onTop').checked = D.settings.onTop;
+    $('alarmVolume').value = Math.round(100 * (D.settings.alarmVolume ?? .75)); $('alarmVolumeValue').textContent = $('alarmVolume').value + '%';
+  }
+  const ta = $('text'); if (ta.dataset.id !== n.id || ta.value !== n.text) { ta.value = n.text; ta.dataset.id = n.id; }
+  ta.hidden = !!n.preview; $('view').hidden = !n.preview; $('eye').classList.toggle('on', !!n.preview);
+  const reminders = n.reminders || [], state = noteReminderStatus(n);
+  const due = reminders.filter(r => reminderStatus(r) === 'due');
+  const upcoming = reminders.filter(r => reminderStatus(r) === 'scheduled');
+  $('remind').classList.toggle('on', state === 'scheduled' || state === 'due');
+  $('remind').classList.toggle('due', state === 'due');
+  $('remind').title = (due.length ? `${due.length} due · ` : '') +
+    `${reminders.length} reminder${reminders.length === 1 ? '' : 's'} on this tab — click to manage`;
+  $('dueLabel').textContent = due.length ? '⏰ ' + due[0].text.slice(0, 50) +
+    (due.length > 1 ? ` (+${due.length - 1} more)` : '') : '⏰ Reminder due';
+  $('dueBanner').hidden = state !== 'due';
+  if (!$('rp').hidden) showReminderStatus(n);
+  if (!me && !$('calendarPanel').hidden) renderCalendar();
+  if (n.preview) { const st = $('view').scrollTop; $('view').innerHTML = md(n.text); $('view').scrollTop = st; }
+}
+let renId = null;
+function rename(n) { closeMenu(); renId = n.id; $('rni').value = n.title; $('rn').hidden = false; $('rni').focus(); $('rni').select(); }
+function endRename(ok) {
+  if (renId === null) return;
+  const n = D.tabs.find(t => t.id === renId); renId = null; $('rn').hidden = true;
+  if (ok && n) { n.title = $('rni').value.trim() || 'Untitled'; flush(); api.update(n.id, { title: n.title }); }
+  render(); $('text').focus();
+}
+async function del(n) { if (!confirm(`Move "${n.title}" to Recently Deleted?`)) return; flush(); await api.del(n.id); refresh(); }
+async function popOut(n) { flush(); await api.popOut(n.id); refresh(); }
+async function dock(n) { flush(); await api.dock(n.id); if (!me) refresh(); }
+function setColor(n, c) { n.color = c; flush(); api.update(n.id, { color: c }); render(); }
+
+// Inline folder name editor works in Electron (window.prompt is unreliable).
+let editingFolder = null;
+function editFolder(id = null) {
+  if (me) return;
+  closeMenu(); editingFolder = id;
+  $('folderInput').value = id == null ? '' : (D.folders || []).find(f => f.id === id)?.name || '';
+  $('folderEditor').hidden = false; $('folderInput').focus(); $('folderInput').select();
+}
+function cancelFolderEdit() { editingFolder = null; $('folderEditor').hidden = true; }
+async function saveFolderEdit() {
+  const name = $('folderInput').value.trim();
+  if (!name) { $('folderInput').focus(); return; }
+  const id = editingFolder; cancelFolderEdit(); flush();
+  if (id == null) await api.createFolder(name);
+  else await api.renameFolder(id, name);
+  await refresh();
+}
+$('addfolder').onclick = () => editFolder();
+$('folderSave').onclick = saveFolderEdit;
+$('folderCancel').onclick = cancelFolderEdit;
+$('folderInput').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); saveFolderEdit(); } else if (e.key === 'Escape') { e.stopPropagation(); cancelFolderEdit(); } };
+function folderMenu(folder, x, y) {
+  closeMenu(); const m = document.createElement('div'); m.id = 'menu';
+  const add = (label, action) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => { closeMenu(); action(); }; m.appendChild(b); };
+  add('New note in ' + folder.name, async () => { flush(); D = await api.add(folder.id); render(); rename(cur()); });
+  add('Import notes…', importSharedNotes);
+  if (folder.id != null) {
+    add('Rename folder', () => editFolder(folder.id));
+    const colors = document.createElement('div'); colors.className = 'sws'; colors.title = 'Folder colors';
+    for (const color of COLORS) {
+      const button = document.createElement('button'); button.className = 'sw' + (folder.color === color ? ' on' : '');
+      button.style.background = color; button.title = 'Set folder color';
+      button.onclick = async () => { closeMenu(); await api.folderColor(folder.id, color); refresh(); };
+      colors.appendChild(button);
+    }
+    m.appendChild(colors);
+    add('Delete folder (keep notes)', async () => {
+      if (confirm('Delete folder "' + folder.name + '"? Its notes will move to Unfiled.')) { flush(); await api.deleteFolder(folder.id); await refresh(); }
+    });
+  }
+  document.body.appendChild(m);
+  m.style.left = Math.max(4, Math.min(x, innerWidth - m.offsetWidth - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(y, innerHeight - m.offsetHeight - 4)) + 'px';
+}
+function closeMenu() { $('menu')?.remove(); $('addMenu').setAttribute('aria-expanded','false'); }
+function addContextMenu(x,y) {
+  closeMenu(); const m=document.createElement('div');m.id='menu';
+  for (const [label,action] of [
+    ['New blank note', ()=>$('add').click()],
+    ['Import notes…', importSharedNotes],
+    ['New folder…', ()=>editFolder()]
+  ]) {
+    const b=document.createElement('button');b.textContent=label;
+    b.onclick=()=>{closeMenu();action();};m.appendChild(b);
+  }
+  document.body.appendChild(m);
+  m.style.left=Math.max(4,Math.min(x,innerWidth-m.offsetWidth-4))+'px';
+  m.style.top=Math.max(4,Math.min(y,innerHeight-m.offsetHeight-4))+'px';
+}
+$('addMenu').onclick=e=>{
+  const r=e.currentTarget.getBoundingClientRect();
+  if($('menu')){closeMenu();return;}
+  addContextMenu(r.left,r.top-3);
+  $('addMenu').setAttribute('aria-expanded','true');
+};
+$('add').oncontextmenu=e=>{e.preventDefault();addContextMenu(e.clientX,e.clientY);};
+$('side').addEventListener('contextmenu',e=>{
+  if(e.target.closest('.tab,.folder-head,#folderEditor,#addfolder,#add,#addMenu'))return;
+  e.preventDefault();addContextMenu(e.clientX,e.clientY);
+});
+function menu(n, x, y) {
+  closeMenu(); const m = document.createElement('div'); m.id = 'menu';
+  const item = (t, f, off) => { if (off) return; const b = document.createElement('button'); b.textContent = t; b.onclick = () => { closeMenu(); f(); }; m.appendChild(b); };
+  item('Rename', () => rename(n));
+  if (!me) {
+    item('Move to: Unfiled', async () => { flush(); await api.moveNote(n.id, null); refresh(); }, folderOf(n) == null);
+    for (const folder of D.folders || []) {
+      item('Move to: ' + folder.name, async () => { flush(); await api.moveNote(n.id, folder.id); refresh(); }, folderOf(n) === folder.id);
+    }
+  }
+  item('Set reminder…', () => { if (cur()?.id === n.id) openReminder(); else api.openNote(n.id, ''); });
+  item('Pop out', () => popOut(n), me || vis().length < 2);
+  item('Dock back', () => dock(n), !me);
+  item('Export this note…', () => exportSingleNote(n));
+  item('Import notes…', importSharedNotes);
+  item('Delete (recoverable)', () => del(n));
+  const sw = document.createElement('div'); sw.className = 'sws';
+  COLORS.forEach(c => { const b = document.createElement('button'); b.className = 'sw' + (c === n.color ? ' on' : ''); b.style.background = c; b.title = 'Color'; b.onclick = () => { closeMenu(); setColor(n, c); }; sw.appendChild(b); });
+  m.appendChild(sw); document.body.appendChild(m);
+  m.style.left = Math.max(4, Math.min(x, innerWidth - m.offsetWidth - 4)) + 'px'; m.style.top = Math.max(4, Math.min(y, innerHeight - m.offsetHeight - 4)) + 'px';
+}
+document.addEventListener('mousedown', e => { if (!e.target.closest('#menu')) closeMenu(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'F2') rename(cur());
+  if (e.key === 'Escape') { closeMenu(); closeSearch(); closeCalendar(); $('rp').hidden = true; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); openSearch(); }
+  if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); toggleView(); }
+  if (!me && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); toggleCalendar(); }
+  if (!me && e.ctrlKey && e.key.toLowerCase() === 't') $('add').click();
+});
+
+async function fillMonitors() {
+  const ds = await api.displays(), sel = $('monitor'); sel.innerHTML = '';
+  ds.forEach(d => sel.add(new Option(d.label, d.id))); sel.value = await api.currentDisplay();
+}
+$('text').oninput = e => { const n = cur(); n.text = e.target.value; queue(n.id, { text: n.text }); };
+$('add').onclick = async () => { flush(); D = await api.add(cur()?.folderId || null); render(); rename(cur()); };
+$('eye').onclick = () => toggleView();
+$('find').onclick = openSearch;
+$('remind').onclick = () => openReminder();
+$('calendar').onclick = toggleCalendar;
+// Custom alarm files are copied into APPDATA by the main process so they
+// survive upgrades and still ring when their source folder is unavailable.
+let alarmPreview = null, alarmPreviewTimer = null, alarmPreviewContext = null;
+function stopAlarmPreview() {
+  clearTimeout(alarmPreviewTimer); alarmPreviewTimer = null;
+  if (alarmPreview) { alarmPreview.pause(); alarmPreview.currentTime = 0; alarmPreview = null; }
+  if (alarmPreviewContext) { alarmPreviewContext.close().catch(()=>{}); alarmPreviewContext = null; }
+  $('testAlarmSound').textContent = '▶ Test sound';
+}
+function alarmSoundLabel(info) {
+  $('alarmSoundName').textContent = info.custom ? 'Selected: ' + info.name : 'Built-in two-tone chime' + (info.missing ? ' (custom sound missing)' : '');
+}
+async function updateAlarmSoundLabel() {
+  try { alarmSoundLabel(await api.getAlarmSoundInfo()); } catch { $('alarmSoundName').textContent = 'Audio settings unavailable'; }
+}
+$('alarmVolume').oninput = () => {
+  const volume = +$('alarmVolume').value / 100;
+  $('alarmVolumeValue').textContent = $('alarmVolume').value + '%';
+  D.settings.alarmVolume = volume; api.set('alarmVolume', volume);
+  if (alarmPreview) alarmPreview.volume = volume;
+};
+$('chooseAlarmSound').onclick = async () => {
+  stopAlarmPreview();
+  const result = await api.chooseAlarmSound();
+  if (result.ok) { alarmSoundLabel(result); $('alarmAudioStatus').textContent = 'Sound imported and saved for future alarms.'; }
+  else if (!result.canceled) $('alarmAudioStatus').textContent = result.error || 'Could not import audio.';
+};
+$('resetAlarmSound').onclick = async () => {
+  stopAlarmPreview();
+  const result = await api.resetAlarmSound();
+  if (result.ok) { alarmSoundLabel(result); $('alarmAudioStatus').textContent = 'Using the built-in chime.'; }
+};
+$('testAlarmSound').onclick = async () => {
+  if (alarmPreviewTimer || alarmPreview || alarmPreviewContext) { stopAlarmPreview(); return; }
+  $('alarmAudioStatus').textContent = 'Playing a short preview…';
+  try {
+    const info = await api.getAlarmAudio(), volume = +$('alarmVolume').value / 100;
+    if (info.src) {
+      const audio = new Audio(info.src); audio.volume = volume; audio.loop = true; alarmPreview = audio;
+      await audio.play();
+    } else {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)(); alarmPreviewContext = ctx;
+      if (ctx.state === 'suspended') await ctx.resume();
+      for (const [i, frequency] of [784, 1046, 784].entries()) {
+        const osc = ctx.createOscillator(), gain = ctx.createGain(), t = ctx.currentTime + .03 + i * .25;
+        osc.frequency.value = frequency; gain.gain.setValueAtTime(.0001, t);
+        gain.gain.exponentialRampToValueAtTime(Math.max(.0001, .14 * volume), t + .025);
+        gain.gain.exponentialRampToValueAtTime(.0001, t + .22);
+        osc.connect(gain).connect(ctx.destination); osc.start(t); osc.stop(t + .23);
+      }
+    }
+    $('testAlarmSound').textContent = '■ Stop test';
+    alarmPreviewTimer = setTimeout(() => { stopAlarmPreview(); $('alarmAudioStatus').textContent = 'Preview finished.'; }, 5000);
+  } catch(err) { stopAlarmPreview(); $('alarmAudioStatus').textContent = 'Could not play sound: ' + err.message; }
+};
+$('gear').onclick = async () => {
+  $('panel').classList.toggle('open');
+  if ($('panel').classList.contains('open')) { $('startup').checked = await api.getStartup(); updateAlarmSoundLabel(); refreshTrash(); loadBackupSettings(); }
+  else stopAlarmPreview();
+};
+$('hide').onclick = () => api.hide();
+$('quit').onclick = () => api.quit();
+$('del').onclick = () => del(cur());
+$('dot').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); menu(cur(), r.left - 120, r.bottom + 4); };
+$('rnok').onclick = () => endRename(true); $('rnx').onclick = () => endRename(false);
+$('rni').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') endRename(true); if (e.key === 'Escape') endRename(false); };
+let dragging = false;
+$('bar').addEventListener('pointerdown', e => {
+  if (!me || e.button !== 0 || e.target.closest('.btn')) return;
+  dragging = true; $('bar').setPointerCapture(e.pointerId); api.dragStart();
+});
+const stopDrag = () => { if (dragging) { dragging = false; api.dragEnd(); } };
+$('bar').addEventListener('pointerup', stopDrag); $('bar').addEventListener('pointercancel', stopDrag);
+$('bar').addEventListener('dblclick', e => { if (me && !e.target.closest('.btn')) rename(cur()); });
+$('title').ondblclick = () => rename(cur());
+$('title').oncontextmenu = e => { e.preventDefault(); menu(cur(), e.clientX, e.clientY); };
+$('monitor').onchange = e => api.moveToDisplay(Number(e.target.value));
+$('opacity').oninput = e => api.set('opacity', +e.target.value);
+$('fs').oninput = e => api.set('fontSize', +e.target.value);
+$('tw').oninput = e => api.set('tabWidth', +e.target.value);
+$('font').onchange = e => api.set('font', e.target.value);
+$('onTop').onchange = e => api.set('onTop', e.target.checked);
+$('startup').onchange = async e => { try { e.target.checked = await api.setStartup(e.target.checked); } catch (err) { alert('Could not update startup: ' + err.message); e.target.checked = await api.getStartup(); } };
+
+
+// ---------- Share, trash, and backups (main window only) ----------
+async function exportSingleNote(n) {
+  flush();
+  const result = await api.exportNotes([n.id], false);
+  $('shareStatus').textContent = result.ok ? 'Exported "' + n.title + '".' : (result.canceled ? '' : result.error || 'Export failed.');
+}
+async function renderShareList() {
+  const root = $('shareList'); root.innerHTML = '';
+  for (const n of D.tabs) {
+    const item = document.createElement('label'); item.className = 'feature-item';
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = n.id;
+    const text = document.createElement('span'); text.className = 'label'; text.textContent = n.title + ' (' + folderLabel(n.folderId) + ')';
+    item.append(checkbox,text); root.appendChild(item);
+  }
+}
+$('shareToggle').onclick = () => { $('sharePanel').hidden = !$('sharePanel').hidden; if (!$('sharePanel').hidden) renderShareList(); };
+$('shareExport').onclick = async () => {
+  flush(); const ids = [...$('shareList').querySelectorAll('input:checked')].map(el=>el.value);
+  if (!ids.length) { $('shareStatus').textContent = 'Select at least one note.'; return; }
+  const result = await api.exportNotes(ids, $('shareReminders').checked);
+  $('shareStatus').textContent = result.ok ? 'Exported ' + result.count + ' note(s).' : (result.canceled ? 'Export canceled.' : 'Export failed: '+ result.error);
+};
+let importToastTimeout = null;
+function showImportToast(message) {
+  clearTimeout(importToastTimeout);
+  $('importToast').textContent=message; $('importToast').hidden=false;
+  importToastTimeout=setTimeout(()=>$('importToast').hidden=true,5000);
+}
+async function importSharedNotes() {
+  closeMenu(); flush();
+  const result=await api.importNotes();
+  if(result.canceled) return;
+  const message=result.ok ? 'Imported '+result.count+' note(s).' : 'Import failed: '+(result.error||'Unknown error');
+  $('shareStatus').textContent=message;
+  showImportToast(message);
+  if(result.ok){await refresh(); if(!me)renderShareList();}
+}
+$('shareImport').onclick=importSharedNotes;
+async function refreshTrash() {
+  const entries = await api.listTrash(), root = $('trashList'); root.innerHTML='';
+  $('trashCount').textContent = '(' + entries.length + ')';
+  if (!entries.length) { root.textContent = 'No recently deleted notes.'; return; }
+  for (const entry of [...entries].reverse()) {
+    const item = document.createElement('div'); item.className='feature-item';
+    const label = document.createElement('div'); label.className='label'; label.textContent = entry.title;
+    const sub = document.createElement('small'); sub.textContent = (entry.folderName || 'Unfiled') + ' · deleted '+ new Date(entry.deletedAt).toLocaleDateString(); label.appendChild(sub);
+    const restore = document.createElement('button'); restore.textContent='Restore';
+    restore.onclick=async()=> { flush(); if(await api.restoreTrash(entry.id)) { $('trashStatus').textContent='Restored '+entry.title; await refresh(); await refreshTrash(); } };
+    const destroy = document.createElement('button'); destroy.textContent='Delete forever';
+    destroy.onclick=async()=> { if(confirm('Permanently delete "'+entry.title+'"? This cannot be undone.')) { await api.purgeTrash(entry.id); await refreshTrash(); } };
+    item.append(label, restore, destroy); root.appendChild(item);
+  }
+}
+$('trashRefresh').onclick=refreshTrash;
+$('trashEmpty').onclick=async()=> { if (confirm('Permanently erase ALL recently deleted notes? This cannot be undone.')) { await api.purgeTrash('ALL'); await refreshTrash(); } };
+// Password inputs show a filled mask when a credential is stored. The mask is
+// never sent to the main process, so it cannot replace the real encrypted secret.
+const SAVED_CREDENTIAL_MASK = '••••••••••••';
+function showCredentialSaved(inputId, saved) {
+  const field = $(inputId);
+  field.value = saved ? SAVED_CREDENTIAL_MASK : '';
+  field.dataset.stored = saved ? 'true' : 'false';
+  field.title = saved ? 'Saved securely. Type to replace, or use Forget to remove.' : 'No saved credential';
+}
+function secretForSave(inputId) {
+  const field = $(inputId);
+  return field.dataset.stored === 'true' && field.value === SAVED_CREDENTIAL_MASK ? '' : field.value.trim();
+}
+for (const id of ['backupWebhook', 'backupGithubToken']) {
+  $(id).addEventListener('focus', () => {
+    if ($(id).dataset.stored === 'true' && $(id).value === SAVED_CREDENTIAL_MASK) $(id).select();
+  });
+  $(id).addEventListener('input', () => { $(id).dataset.stored = 'false'; });
+}
+function backupTargetFields() {
+  const target=$('backupTarget').value;
+  $('cloudSettings').hidden=target==='local';
+  $('backupLocalRow').hidden=target!=='local';
+  $('backupDiscordRow').hidden=target!=='discord'; $('backupGithubRow').hidden=target!=='github';
+}
+$('backupTarget').onchange=backupTargetFields;
+async function loadBackupSettings() {
+  const info=await api.backupSettings(); if (!info) return;
+  $('backupTarget').value=info.target; $('backupCloudEnabled').checked=info.enabled;
+  $('backupGithubRepo').value=info.githubRepo; $('backupGithubBranch').value=info.githubBranch; $('backupGithubDir').value=info.githubDirectory;
+  $('backupLocalLabel').textContent=info.localFolder || 'Default application backup folder';
+  showCredentialSaved('backupWebhook', info.hasDiscord);
+  showCredentialSaved('backupGithubToken', info.hasGithub);
+  $('backupDiscordSaved').textContent=info.hasDiscord ? '✓ Webhook saved securely. Replace by typing a new URL, or use Forget.' : 'No webhook saved.';
+  $('backupGithubSaved').textContent=info.hasGithub ? '✓ Token saved securely. Replace by typing a new token, or use Forget.' : 'No token saved.';
+  $('backupSavedConnections').textContent='Saved connections: Discord '+ (info.hasDiscord ? '✓ saved' : '— not set') + ' · GitHub '+(info.hasGithub ? '✓ saved' : '— not set');
+  $('backupLast').textContent='Last backup: '+ (info.lastAt ? new Date(info.lastAt).toLocaleString() : 'not yet created');
+  $('backupStatus').textContent=info.status || '';
+  backupTargetFields();
+}
+$('backupChooseLocal').onclick=async()=> {
+  const result=await api.chooseBackupLocal();
+  $('backupStatus').textContent=result.ok?'Local backup folder selected.':(result.canceled?'':result.error);
+  if(result.ok) $('backupLocalLabel').textContent=result.localFolder;
+};
+$('backupResetLocal').onclick=async()=> {
+  const result=await api.resetBackupLocal();
+  $('backupStatus').textContent=result.ok?'Using default local backup folder.':(result.error||'Could not reset folder.');
+  if(result.ok) $('backupLocalLabel').textContent=result.localFolder;
+};
+$('backupSaveSettings').onclick=async()=> {
+  const input={target:$('backupTarget').value, enabled:$('backupCloudEnabled').checked,
+    githubRepo:$('backupGithubRepo').value, githubBranch:$('backupGithubBranch').value, githubDirectory:$('backupGithubDir').value,
+    webhook:secretForSave('backupWebhook'), githubToken:secretForSave('backupGithubToken')};
+  const result=await api.configureBackup(input);
+  $('backupStatus').textContent=result.ok?'Backup settings saved.':(result.error || 'Could not save settings.');
+  if(result.ok) await loadBackupSettings();
+};
+$('backupClearDiscord').onclick=async()=> { if(!confirm('Forget the saved Discord webhook?'))return;
+  const input={target:$('backupTarget').value,enabled:$('backupCloudEnabled').checked,githubRepo:$('backupGithubRepo').value,githubBranch:$('backupGithubBranch').value,githubDirectory:$('backupGithubDir').value,clearSecret:'discord'};
+  const result=await api.configureBackup(input); if (result.ok) await loadBackupSettings();
+  $('backupStatus').textContent=result.ok?'Discord webhook forgotten.':result.error; };
+$('backupClearGithub').onclick=async()=> { if(!confirm('Forget the saved GitHub token?'))return;
+  const input={target:$('backupTarget').value,enabled:$('backupCloudEnabled').checked,githubRepo:$('backupGithubRepo').value,githubBranch:$('backupGithubBranch').value,githubDirectory:$('backupGithubDir').value,clearSecret:'github'};
+  const result=await api.configureBackup(input); if (result.ok) await loadBackupSettings();
+  $('backupStatus').textContent=result.ok?'GitHub token forgotten.':result.error; };
+$('backupNow').onclick=async()=> { flush(); $('backupStatus').textContent='Saving backup…';
+  const r=await api.backupNow(); $('backupStatus').textContent=r.status || (r.ok?'Backup complete':'Backup failed: '+r.error); await loadBackupSettings(); };
+$('backupOpenFolder').onclick=()=>api.openBackupFolder();
+$('backupRestore').onclick=async()=> {
+  if(!confirm('Restore a full backup? Your current notes and workspace will be replaced. A safety backup is saved first.'))return;
+  flush(); const r=await api.restoreBackup();
+  $('backupStatus').textContent=r.ok?'Restored '+r.count+' notes. Safety backup: '+r.safetyFile:(r.canceled?'Restore canceled.':'Restore failed: '+r.error);
+  if(r.ok){ await refresh(); await refreshTrash(); await loadBackupSettings(); }
+};
+
+// ---------- Reminders linked to selected passages and owning tab ----------
+let editingReminderId = null, selectedSnippet = '';
+const reminderTime = r => new Date(r.snoozedUntil || r.at);
+function localDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), pad = n => String(n).padStart(2, '0');
+  return Number.isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function reminderStatus(r) {
+  if (!r?.at) return 'none';
+  if (r.dismissedAt === r.at) return 'done';
+  const at = reminderTime(r).getTime();
+  return Number.isFinite(at) && at <= Date.now() ? 'due' : 'scheduled';
+}
+function noteReminderStatus(n) {
+  const statuses = (n.reminders || []).map(reminderStatus);
+  return statuses.includes('due') ? 'due' : statuses.includes('scheduled') ? 'scheduled' :
+    statuses.includes('done') ? 'done' : 'none';
+}
+function dueReminders(n) { return (n.reminders || []).filter(r => reminderStatus(r) === 'due').sort((a,b) => reminderTime(a) - reminderTime(b)); }
+function currentSelection() {
+  const n = cur(); if (!n) return '';
+  const ta = $('text');
+  if (!n.preview && ta.selectionEnd > ta.selectionStart && document.activeElement === ta)
+    return ta.value.slice(ta.selectionStart, ta.selectionEnd).trim().slice(0, 500);
+  if (n.preview) {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount && $('view').contains(selection.getRangeAt(0).commonAncestorContainer))
+      return selection.toString().trim().slice(0, 500);
+  }
+  return '';
+}
+function hideSelectionAction() { $('selectionReminder').hidden = true; }
+function updateSelectionAction(e) {
+  const text = currentSelection();
+  if (!text || !$('rp').hidden || !$('calendarPanel').hidden) { hideSelectionAction(); return; }
+  selectedSnippet = text;
+  const noteRect = $('note').getBoundingClientRect();
+  const x = e && Number.isFinite(e.clientX) ? e.clientX - noteRect.left : 45;
+  const y = e && Number.isFinite(e.clientY) ? e.clientY - noteRect.top : 75;
+  const btn = $('selectionReminder');
+  btn.style.left = Math.max(8, Math.min(x, noteRect.width - 135)) + 'px';
+  btn.style.top = Math.max(42, Math.min(y + 7, noteRect.height - 50)) + 'px';
+  btn.hidden = false;
+}
+// Mouse selection and Shift+arrows both offer a one-click way to make a reminder.
+['text', 'view'].forEach(id => {
+  $(id).addEventListener('mouseup', e => { if (e.button === 0) updateSelectionAction(e); });
+  $(id).addEventListener('keyup', e => { if (e.shiftKey) updateSelectionAction(); });
+});
+$('selectionReminder').addEventListener('pointerdown', e => e.preventDefault());
+$('selectionReminder').onclick = () => openReminder(undefined, selectedSnippet);
+function renderReminderList(n) {
+  const list = $('rlist'); list.replaceChildren();
+  const reminders = [...(n.reminders || [])].sort((a,b) => reminderTime(a) - reminderTime(b));
+  if (!reminders.length) {
+    const empty = document.createElement('div'); empty.textContent = 'No reminders yet. Select words in this note and choose Remind me.';
+    empty.style.opacity = '.75'; list.appendChild(empty); return;
+  }
+  for (const r of reminders) {
+    const row = document.createElement('div'); row.className = 'rem-row' + (r.important ? ' important' : '');
+    const details = document.createElement('button'); details.type = 'button'; details.className = 'rem-details';
+    const caption = document.createElement('strong'); caption.textContent = (r.important ? '🔔 ' : '') + r.text;
+    const meta = document.createElement('small');
+    meta.textContent = (reminderStatus(r) === 'due' ? 'Overdue · ' : reminderStatus(r) === 'done' ? 'Done · ' : '') +
+      reminderTime(r).toLocaleString() + (r.repeat && r.repeat !== 'none' ? ' · ' + r.repeat : '');
+    details.append(caption, meta); details.title = 'Edit this reminder';
+    details.onclick = () => editReminder(r);
+    const del = document.createElement('button'); del.className = 'rem-delete'; del.type = 'button'; del.textContent = 'Delete';
+    del.title = `Delete reminder: ${r.text}`;
+    del.onclick = async () => { await deleteReminder(n.id, r.id); };
+    row.append(details, del); list.appendChild(row);
+  }
+}
+function showReminderStatus(n) {
+  $('rnote').textContent = n.title || 'Untitled';
+  $('rstate').textContent = editingReminderId ? 'Editing an existing reminder. Delete only removes the selected reminder.' :
+    'Each passage can have its own reminder. Turn on Important for a ringing alarm that continues until Snoozed, Done, or silenced.';
+  renderReminderList(n);
+}
+function editReminder(r) {
+  editingReminderId = r.id;
+  $('rtext').value = r.text || '';
+  $('remindAt').value = localDateTime(r.snoozedUntil || r.at);
+  $('rrepeat').value = r.repeat || 'none';
+  $('rimportant').checked = !!r.important;
+  $('rset').textContent = 'Update reminder';
+  showReminderStatus(cur());
+}
+function newReminder(text = '', suggestedAt) {
+  editingReminderId = null;
+  $('rtext').value = text;
+  $('remindAt').value = localDateTime(suggestedAt instanceof Date ? suggestedAt : new Date(Date.now() + 3_600_000));
+  $('rrepeat').value = 'none';
+  $('rimportant').checked = false;
+  $('rset').textContent = 'Add reminder';
+  showReminderStatus(cur());
+}
+function openReminder(suggestedAt, text = null, reminderId = null) {
+  const n = cur(); if (!n) return;
+  const snippet = text === null ? (currentSelection() || selectedSnippet) : text;
+  hideSelectionAction(); selectedSnippet = '';
+  closeSearch(); closeCalendar(); $('rp').hidden = false;
+  if (reminderId) {
+    const r = (n.reminders || []).find(r => r.id === reminderId);
+    if (r) editReminder(r); else newReminder(snippet || '', suggestedAt);
+  } else newReminder(snippet || '', suggestedAt);
+  if (!snippet) $('rtext').focus(); else $('remindAt').focus();
+}
+async function setReminder(at) {
+  const n = cur(); if (!n) return;
+  const when = new Date(at), content = $('rtext').value.trim();
+  if (!content) { alert('Highlight text in your note or enter a reminder description.'); $('rtext').focus(); return; }
+  if (!Number.isFinite(when.getTime()) || when.getTime() <= Date.now()) { alert('Choose a future date and time.'); return; }
+  flush();
+  const result = await api.setReminder(n.id, when.toISOString(), $('rrepeat').value, content, editingReminderId, $('rimportant').checked);
+  if (!result.ok) { alert(result.error); return; }
+  $('rp').hidden = true; hideSelectionAction(); await refresh();
+}
+async function deleteReminder(noteId, reminderId) {
+  flush();
+  const ok = await api.reminderAction(noteId, reminderId, 'delete');
+  if (ok) {
+    if (editingReminderId === reminderId) editingReminderId = null;
+    await refresh();
+    if (!$('rp').hidden) newReminder();
+  }
+}
+$('rclose').onclick = () => { $('rp').hidden = true; };
+$('rnew').onclick = () => newReminder();
+$('rset').onclick = () => setReminder($('remindAt').value);
+$('rp').querySelectorAll('[data-quick]').forEach(btn => btn.onclick = () => {
+  const val = btn.dataset.quick, date = new Date();
+  if (val === 'morning') { date.setDate(date.getDate() + 1); date.setHours(9, 0, 0, 0); }
+  else date.setTime(date.getTime() + Number(val) * 60_000);
+  $('remindAt').value = localDateTime(date);
+  setReminder(date);
+});
+async function actionReminder(action, minutes) {
+  flush(); const n = cur(), r = n && dueReminders(n)[0]; if (!r) return;
+  const ok = await api.reminderAction(n.id, r.id, action, minutes);
+  if (ok) await refresh();
+}
+$('snooze10').onclick = () => actionReminder('snooze', 10);
+$('snooze60').onclick = () => actionReminder('snooze', 60);
+$('dismissReminder').onclick = () => actionReminder('dismiss');
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+    e.preventDefault(); openReminder();
+  }
+});
+
+// ---------- all-notes reminders calendar ----------
+// Calendar dates are local calendar days (never UTC strings), so reminders
+// remain on the right day across DST and in users' own Windows time zone.
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarSelected = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+const dayKey = d => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+function closeCalendar() { $('calendarPanel').hidden = true; }
+function toggleCalendar() {
+  if (me) return;
+  if (!$('calendarPanel').hidden) { closeCalendar(); return; }
+  flush(); closeSearch(); $('rp').hidden = true; $('panel').classList.remove('open');
+  const now = new Date();
+  calendarSelected = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  $('calendarPanel').hidden = false; renderCalendar();
+}
+function calendarMonthEvents() {
+  const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+  const byDay = new Map();
+  for (const n of D.tabs) for (const r of n.reminders || []) {
+    if (!r.at) continue;
+    const at = reminderTime(r);
+    if (!Number.isFinite(at.getTime())) continue;
+    const repeat = r.repeat === 'daily' ? 1 : r.repeat === 'weekly' ? 7 : 0;
+    const done = r.dismissedAt === r.at;
+    let time = new Date(at);
+    if (repeat && time < start) {
+      const delta = Math.max(0, Math.floor((start - time) / 86_400_000 / repeat) - 1);
+      if (delta) time.setDate(time.getDate() + delta * repeat);
+      while (time < start) time.setDate(time.getDate() + repeat);
+    }
+    for (let i = 0; time < end && i < 32; i++) {
+      if (time >= start) {
+        const key = dayKey(time), events = byDay.get(key) || [];
+        events.push({ id: n.id, reminderId: r.id, title: n.title || 'Untitled', text: r.text,
+          color: n.color || '#bbb', at: new Date(time), repeat: !!repeat, important: !!r.important,
+          done: done && !repeat, due: reminderStatus(r) === 'due' && i === 0 && time.getTime() === at.getTime() });
+        byDay.set(key, events);
+      }
+      if (!repeat) break;
+      time.setDate(time.getDate() + repeat);
+    }
+  }
+  for (const events of byDay.values()) events.sort((a, b) => a.at - b.at || a.title.localeCompare(b.title));
+  return byDay;
+}
+function renderCalendar() {
+  if (me || $('calendarPanel').hidden || !D) return;
+  const now = new Date(), today = dayKey(now), m = calendarMonth;
+  $('calMonth').textContent = m.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const overdue = D.tabs.flatMap(n => (n.reminders || []).filter(r => reminderStatus(r) === 'due')
+    .map(r => ({ note: n, reminder: r })));
+  $('calOverdue').hidden = overdue.length === 0;
+  $('calOverdue').textContent = overdue.length + ' overdue reminder' + (overdue.length === 1 ? '' : 's') + ' — view today';
+  const weekdays = $('calWeekdays'); weekdays.replaceChildren();
+  for (let i = 0; i < 7; i++) {
+    const w = document.createElement('span'); w.textContent = new Date(2023, 0, 1 + i).toLocaleDateString(undefined, {weekday:'short'});
+    weekdays.appendChild(w);
+  }
+  const events = calendarMonthEvents(), grid = $('calGrid'); grid.replaceChildren();
+  const offset = m.getDay(), days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  for (let i = 0; i < offset; i++) { const blank = document.createElement('span'); blank.className = 'cal-empty'; grid.appendChild(blank); }
+  for (let i = 1; i <= days; i++) {
+    const date = new Date(m.getFullYear(), m.getMonth(), i), key = dayKey(date), count = (events.get(key) || []).length;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'cal-day';
+    if (count) b.classList.add('has-reminders');
+    if (key === today) b.classList.add('today');
+    if (key === dayKey(calendarSelected)) b.classList.add('selected');
+    b.textContent = String(i);
+    b.setAttribute('aria-label', date.toLocaleDateString(undefined, {weekday:'long', month:'long',day:'numeric'}) + (count ? ` — ${count} reminder${count > 1 ? 's' : ''}` : ''));
+    if (count) { const badge = document.createElement('span'); badge.className = 'cal-count'; badge.textContent = count > 9 ? '9+' : String(count); b.appendChild(badge); b.title = (events.get(key) || []).map(v => v.title + ': ' + v.text).join(', '); }
+    b.onclick = () => { calendarSelected = date; renderCalendar(); };
+    grid.appendChild(b);
+  }
+  $('calDayTitle').textContent = calendarSelected.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
+  const selected = events.get(dayKey(calendarSelected)) || [], isToday = dayKey(calendarSelected) === today;
+  const late = isToday ? overdue.filter(({note:n,reminder:r}) =>
+    !selected.some(v => v.id === n.id && v.reminderId === r.id && v.due)) : [];
+  $('calDayCount').textContent = (selected.length + late.length) ? (selected.length + late.length) + ' reminder' + (selected.length + late.length === 1 ? '' : 's') : 'No reminders';
+  const list = $('calAgenda'); list.replaceChildren();
+  function addEvent(n, info) {
+    const row = document.createElement('div'); row.className = 'cal-event-row' + (info.important ? ' important' : '');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'cal-event' + (info.done ? ' done' : '');
+    b.title = 'Open note: ' + n.title;
+    const dot = document.createElement('span'); dot.className = 'cal-color'; dot.style.background = info.color;
+    const name = document.createElement('span'); name.className = 'cal-name';
+    name.textContent = (info.important ? '🔔 ' : '') + info.title + ' · ' + info.text + (info.repeat ? ' ↻' : '');
+    const time = document.createElement('span'); time.className = 'cal-time';
+    time.textContent = info.overdue ? 'Overdue' : info.done ? 'Done' : info.at.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+    b.append(dot, name, time);
+    b.onclick = async () => { closeCalendar(); flush(); await api.openNote(info.id, info.text); };
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'cal-delete'; del.textContent = '×';
+    del.title = `Delete reminder from ${n.title}: ${info.text}`; del.setAttribute('aria-label', del.title);
+    del.onclick = async () => { await deleteReminder(info.id, info.reminderId); };
+    row.append(b, del); list.appendChild(row);
+  }
+  for (const info of selected) addEvent(D.tabs.find(t => t.id === info.id), info);
+  for (const { note:n, reminder:r } of late) addEvent(n, {id:n.id,reminderId:r.id,title:n.title || 'Untitled',
+    text:r.text, color:n.color || '#bbb', overdue:true, important:!!r.important});
+  if (!selected.length && !late.length) { const empty = document.createElement('div'); empty.className = 'cal-agenda-empty'; empty.textContent = 'No reminders scheduled for this day.'; list.appendChild(empty); }
+  const endOfSelected = new Date(calendarSelected.getFullYear(), calendarSelected.getMonth(), calendarSelected.getDate() + 1);
+  $('calAdd').disabled = endOfSelected <= now;
+}
+$('calPrev').onclick = () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  calendarSelected = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  renderCalendar();
+};
+$('calNext').onclick = () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  calendarSelected = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  renderCalendar();
+};
+$('calToday').onclick = () => {
+  const now = new Date(); calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  calendarSelected = new Date(now.getFullYear(), now.getMonth(), now.getDate()); renderCalendar();
+};
+$('calOverdue').onclick = $('calToday').onclick;
+$('calClose').onclick = closeCalendar;
+$('calAdd').onclick = () => {
+  let suggested = new Date(calendarSelected.getFullYear(), calendarSelected.getMonth(), calendarSelected.getDate(), 9, 0);
+  if (suggested <= new Date()) {
+    if (dayKey(calendarSelected) !== dayKey(new Date())) return;
+    suggested = new Date(Date.now() + 60 * 60_000);
+    suggested.setSeconds(0, 0);
+  }
+  openReminder(suggested, currentSelection() || cur().title || 'Reminder');
+};
+
+// ---------- global note search ----------
+let searchSerial = 0, searchTimer;
+function openSearch() {
+  flush(); closeCalendar(); $('rp').hidden = true; $('search').hidden = false;
+  $('searchinput').focus(); $('searchinput').select(); runSearch();
+}
+function closeSearch() { $('search').hidden = true; clearTimeout(searchTimer); searchSerial++; }
+$('searchclose').onclick = closeSearch;
+$('searchinput').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 110); };
+$('searchinput').onkeydown = e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('searchresults').querySelector('.result')?.click(); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); $('searchresults').querySelector('.result')?.focus(); }
+  if (e.key === 'Escape') { e.preventDefault(); closeSearch(); $('text').focus(); }
+};
+$('searchresults').onkeydown = e => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  const all = [...$('searchresults').querySelectorAll('.result')];
+  const idx = all.indexOf(document.activeElement);
+  (all[Math.max(0, Math.min(all.length - 1, idx + (e.key === 'ArrowDown' ? 1 : -1)))] || $('searchinput')).focus();
+};
+async function runSearch() {
+  const q = $('searchinput').value.trim(), serial = ++searchSerial, holder = $('searchresults');
+  holder.replaceChildren();
+  if (!q) { $('searchstatus').textContent = 'Type to find notes in all tabs and pop-outs'; return; }
+  flush();
+  let results;
+  try { results = await api.search(q); } catch (err) { $('searchstatus').textContent = 'Search unavailable: ' + err.message; return; }
+  if (serial !== searchSerial || $('search').hidden) return;
+  for (const r of results) {
+    const b = document.createElement('button'); b.className = 'result';
+    const name = document.createElement('strong'); name.textContent = r.title + (r.popped ? ' ↗' : '');
+    const snippet = document.createElement('span'); snippet.textContent = r.snippet;
+    b.append(name, snippet);
+    b.onclick = async () => { const term = $('searchinput').value.trim(); closeSearch(); flush(); await api.openNote(r.id, term); };
+    holder.appendChild(b);
+  }
+  $('searchstatus').textContent = results.length ? `${results.length} matching note${results.length === 1 ? '' : 's'} · ${results.reduce((s,r) => s + r.count, 0)} matches` : 'No matches found';
+}
+api.onFocusMatch(async payload => {
+  await refresh(); if (cur()?.id !== payload.id) return;
+  closeSearch();
+  const n = cur();
+  if (n.preview) { n.preview = false; api.update(n.id, { preview: false }); render(); }
+  const ta = $('text'), pos = n.text.toLocaleLowerCase().indexOf(payload.query.toLocaleLowerCase());
+  ta.focus(); if (pos >= 0) ta.setSelectionRange(pos, pos + payload.query.length);
+});
+api.onDockHover(value => { $('docktarget').hidden = !value; });
+
+
+// ---------- markdown preview ----------
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function inline(raw) {
+  const st = [], hold = h => '\u0001' + (st.push(h) - 1) + '\u0001';
+  const s = esc(raw.replace(/\u0001/g, ''))
+    .replace(/`([^`]+)`/g, (_, c) => hold('<code>' + c + '</code>'))
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => hold('<a data-href="' + u + '">' + t + '</a>'))
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_, p, u) => p + hold('<a data-href="' + u + '">' + u + '</a>'))
+    .replace(/\*\*(.+?)\*\*|__(.+?)__/g, (_, a, b) => '<b>' + (a || b) + '</b>')
+    .replace(/(^|[^*\w])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<i>$2</i>')
+    .replace(/(^|[^\w])_(?!\s)([^_]+?)_(?!\w)/g, '$1<i>$2</i>')
+    .replace(/~~(.+?)~~/g, '<s>$1</s>')
+    .replace(/==(.+?)==/g, '<mark>$1</mark>');
+  return s.replace(/\u0001(\d+)\u0001/g, (_, i) => st[i]);
+}
+function md(src) {
+  const L = src.replace(/\r/g, '').split('\n'), out = []; let i = 0, open = null;
+  const close = () => { if (open) { out.push('</' + open + '>'); open = null; } };
+  const list = tag => { if (open !== tag) { close(); out.push('<' + tag + '>'); open = tag; } };
+  const lv = sp => Math.min(Math.floor(sp.length / 2), 4);
+  while (i < L.length) {
+    const ln = L[i]; let m;
+    if (/^```/.test(ln)) { close(); const buf = []; i++; while (i < L.length && !/^```/.test(L[i])) buf.push(L[i++]); out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>'); i++; continue; }
+    if ((m = ln.match(/^(#{1,3})\s+(.*)$/))) { close(); out.push('<h' + m[1].length + '>' + inline(m[2]) + '</h' + m[1].length + '>'); }
+    else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln)) { close(); out.push('<hr>'); }
+    else if ((m = ln.match(/^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$/))) { list('ul'); const on = m[2] !== ' '; out.push('<li class="task' + (on ? ' done' : '') + '" style="--lv:' + lv(m[1]) + '"><input type="checkbox" data-line="' + i + '"' + (on ? ' checked' : '') + '><span>' + inline(m[3]) + '</span></li>'); }
+    else if ((m = ln.match(/^(\s*)[-*+]\s+(.*)$/))) { list('ul'); out.push('<li style="--lv:' + lv(m[1]) + '">' + inline(m[2]) + '</li>'); }
+    else if ((m = ln.match(/^(\s*)\d+[.)]\s+(.*)$/))) { list('ol'); out.push('<li style="--lv:' + lv(m[1]) + '">' + inline(m[2]) + '</li>'); }
+    else if ((m = ln.match(/^>\s?(.*)$/))) { close(); out.push('<blockquote>' + inline(m[1]) + '</blockquote>'); }
+    else if (!ln.trim()) { close(); out.push('<div class="gap"></div>'); }
+    else { close(); out.push('<p>' + inline(ln) + '</p>'); }
+    i++;
+  }
+  close(); return out.join('');
+}
+function toggleView() { hideSelectionAction(); selectedSnippet = ''; const n = cur(); n.preview = !n.preview; flush(); api.update(n.id, { preview: n.preview }); render(); if (!n.preview) $('text').focus(); }
+$('view').addEventListener('click', e => {
+  const cb = e.target.closest('input[data-line]');
+  if (cb) {
+    const n = cur(), L = n.text.split('\n'), i = +cb.dataset.line;
+    L[i] = L[i].replace(/\[( |x|X)\]/, cb.checked ? '[x]' : '[ ]');
+    n.text = L.join('\n'); $('text').value = n.text; queue(n.id, { text: n.text }); render(); return;
+  }
+  const a = e.target.closest('a[data-href]'); if (a) api.openLink(a.dataset.href);
+});
+$('view').addEventListener('dblclick', e => { if (!e.target.closest('input,a')) toggleView(); });
+$('text').addEventListener('dblclick', e => { if (e.button === 0) { e.preventDefault(); toggleView(); } });
+
+// ---------- editing shortcuts ----------
+function ins(ta, a, b, str) { ta.setSelectionRange(a, b); if (str) document.execCommand('insertText', false, str); else if (b > a) document.execCommand('delete'); }
+function wrap(ta, mk) { const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e); ins(ta, s, e, mk + sel + mk); ta.setSelectionRange(s + mk.length, s + mk.length + sel.length); }
+function toggleTask(ta) {
+  const v = ta.value, s = ta.selectionStart, ls = v.lastIndexOf('\n', s - 1) + 1; let le = v.indexOf('\n', s); if (le < 0) le = v.length;
+  const line = v.slice(ls, le); let m, out;
+  if ((m = line.match(/^(\s*)([-*+])\s+\[[ xX]\]\s?(.*)$/))) out = m[1] + m[2] + ' ' + m[3];
+  else if ((m = line.match(/^(\s*)([-*+])\s+(.*)$/))) out = m[1] + m[2] + ' [ ] ' + m[3];
+  else out = '- [ ] ' + line.replace(/^\s+/, '');
+  ins(ta, ls, le, out);
+}
+function listEnter(e, ta) {
+  const v = ta.value, s = ta.selectionStart; if (s !== ta.selectionEnd) return;
+  const ls = v.lastIndexOf('\n', s - 1) + 1, m = v.slice(ls, s).match(/^(\s*)([-*+]|(\d+)([.)]))\s+(\[[ xX]\]\s+)?(.*)$/);
+  if (!m) return;
+  let le = v.indexOf('\n', s); if (le < 0) le = v.length;
+  e.preventDefault();
+  if (!m[6] && !v.slice(s, le).trim()) { ins(ta, ls, s, ''); return; } // empty item ends the list
+  ins(ta, s, s, '\n' + m[1] + (m[3] ? (+m[3] + 1) + m[4] : m[2]) + ' ' + (m[5] ? '[ ] ' : ''));
+}
+function indent(ta, back) {
+  const v = ta.value, s = ta.selectionStart, ls = v.lastIndexOf('\n', s - 1) + 1;
+  if (!/^\s*([-*+]|\d+[.)])\s/.test(v.slice(ls))) { if (!back) ins(ta, s, ta.selectionEnd, '  '); return; }
+  if (back) { const m = v.slice(ls).match(/^ {1,2}/); if (m) { ins(ta, ls, ls + m[0].length, ''); const p = Math.max(ls, s - m[0].length); ta.setSelectionRange(p, p); } }
+  else { ins(ta, ls, ls, '  '); ta.setSelectionRange(s + 2, s + 2); }
+}
+$('text').addEventListener('keydown', e => {
+  const ta = e.target, k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+  if (mod && !e.shiftKey && (k === 'b' || k === 'i')) { e.preventDefault(); wrap(ta, k === 'b' ? '**' : '*'); }
+  else if (mod && e.shiftKey && k === 'l') { e.preventDefault(); toggleTask(ta); }
+  else if (e.key === 'Enter' && !e.shiftKey && !mod) listEnter(e, ta);
+  else if (e.key === 'Tab') { e.preventDefault(); indent(ta, e.shiftKey); }
+});
+
+// ---------- drag tabs: reorder inside, drag out to pop out ----------
+let td = null;
+function tabDown(e, t) { if (e.button !== 0) return; td = { id: t.id, x: e.clientX, y: e.clientY, on: false, out: false, el: e.currentTarget }; }
+function clearDragMarkers() { document.querySelectorAll('.drop,.drop-before,.drop-after').forEach(el => el.classList.remove('drop','drop-before','drop-after')); }
+window.addEventListener('pointermove', e => {
+  if (!td) return;
+  if (!td.on) {
+    if (Math.hypot(e.clientX - td.x, e.clientY - td.y) < 6) return;
+    td.on = true; document.body.setPointerCapture(e.pointerId); document.body.classList.add('tabdrag'); td.el.classList.add('drag');
+  }
+  const r = $('note').getBoundingClientRect();
+  td.out = vis().length > 1 && (e.clientX < r.left - 4 || e.clientX > r.right + 4 || e.clientY < r.top - 4 || e.clientY > r.bottom + 4);
+  $('tear').hidden = !td.out;
+  clearDragMarkers();
+  if (td.out) return;
+  // A folder header is a drop target even when its contents are collapsed.
+  const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.folder-head,.tab,.folder-notes');
+  if (!target || !$('tabs').contains(target) || target === td.el) return;
+  let container = target.classList.contains('folder-notes') ? target : target.closest('.folder-section')?.querySelector('.folder-notes');
+  if (!container) return;
+  container.querySelector('.folder-empty')?.remove();
+  if (target.classList.contains('tab')) {
+    const rect = target.getBoundingClientRect(), after = e.clientY >= rect.top + rect.height / 2;
+    container.insertBefore(td.el, after ? target.nextSibling : target);
+    target.classList.add(after ? 'drop-after' : 'drop-before');
+  } else {
+    container.appendChild(td.el);
+    if (target.classList.contains('folder-head')) target.classList.add('drop');
+  }
+});
+function endTabDrag() { document.body.classList.remove('tabdrag'); $('tear').hidden = true; clearDragMarkers(); }
+window.addEventListener('pointerup', async e => {
+  if (!td) return; const d = td; td = null;
+  if (!d.on) return; endTabDrag();
+  if (d.out) { flush(); await api.popOut(d.id, e.screenX, e.screenY); refresh(); return; }
+  const entries = [], recorded = new Set();
+  for (const section of $('tabs').querySelectorAll('.folder-section')) {
+    const folderId = section.dataset.folderId || null;
+    const ordered = [...section.querySelectorAll('.folder-notes > .tab')].map(el => el.dataset.id);
+    // Collapsed folders have no rendered children; preserve their ordering.
+    const remaining = vis().filter(t => t.id !== d.id && folderOf(t) === folderId && !ordered.includes(t.id)).map(t => t.id);
+    for (const id of [...ordered, ...remaining]) {
+      if (recorded.has(id)) continue;
+      recorded.add(id); entries.push({ id, folderId });
+    }
+  }
+  if (entries.length === vis().length) {
+    const orderBefore = vis().map(t => t.id + ':' + (folderOf(t) || '')).join(',');
+    const orderAfter = entries.map(t => t.id + ':' + (t.folderId || '')).join(',');
+    if (orderBefore !== orderAfter) {
+      const by = new Map(D.tabs.map(t => [t.id, t]));
+      for (const entry of entries) by.get(entry.id).folderId = entry.folderId;
+      D.tabs = [...entries.map(entry => by.get(entry.id)), ...D.tabs.filter(t => t.popped)];
+      flush(); await api.arrangeNotes(entries);
+    }
+  }
+  render();
+});
+window.addEventListener('pointercancel', () => { if (td && td.on) { endTabDrag(); render(); } td = null; });
+
+api.onRefresh(refresh);
+refresh();
+</script>
+</body></html>
