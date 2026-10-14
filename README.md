@@ -1,5 +1,7 @@
 # Overnote
 
+**Version 2.1.1:** Fixed password-protected notes covering the navigation sidebar. A locked note now covers only its editor, so you can switch to other tabs, expand folders, and use Settings without unlocking it.
+
 A lightweight-feeling Windows sticky-note app built with **Electron**, created by **whattherel**.
 
 **GitHub:** https://github.com/Imwhattherel/Overnote
@@ -69,7 +71,7 @@ Right-click in the editor to open **Format selection** and **Insert into note** 
 
 ## Data location, migration, and privacy
 
-Overnote 2.1.0 stores user data at **`%APPDATA%\Overnote`**. On first launch it **copies** `notes.json`, encrypted backup credentials, the selected alarm audio, and up to 14 recent backups from the old `%APPDATA%\sticky-notes` folder. The original folder remains untouched as a manual rollback/safety copy; please **verify the new app has all your notes before manually deleting it**. Later launches do not overwrite newer Overnote data from the old folder. Chromium cache is located separately at **`%LOCALAPPDATA%\Overnote\Chromium`**. Use **Settings → Clear temporary app cache** to clear disposable cache/logs without affecting notes, passwords, alarm audio or backups.
+Overnote 2.1.1 stores user data at **`%APPDATA%\Overnote`**. On first launch it **copies** `notes.json`, encrypted backup credentials, the selected alarm audio, and up to 14 recent backups from the old `%APPDATA%\sticky-notes` folder. The original folder remains untouched as a manual rollback/safety copy; please **verify the new app has all your notes before manually deleting it**. Later launches do not overwrite newer Overnote data from the old folder. Chromium cache is located separately at **`%LOCALAPPDATA%\Overnote\Chromium`**. Use **Settings → Clear temporary app cache** to clear disposable cache/logs without affecting notes, passwords, alarm audio or backups.
 
 A note locked with a password uses **scrypt** to derive an encryption key and **AES-256-GCM** to encrypt its text. Saved JSON and automatic backups contain ciphertext, not the unlocked body. **There is no password recovery**: losing a note's password makes its content unrecoverable. Titles, folder associations, colors and reminder excerpts are **not encrypted** because Overnote uses them for the sidebar, calendar, and alarm notifications. Unlock a note before sharing or exporting it. Passwords and keys are never written into application settings.
 

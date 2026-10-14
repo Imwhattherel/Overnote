@@ -1,6 +1,6 @@
 {
   "name": "overnote",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Overnote: colorful desktop notes, folders, pop-outs and reminders",
   "author": "whattherel",
   "main": "main.js",

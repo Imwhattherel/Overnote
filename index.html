@@ -108,7 +108,9 @@
   .feature-item small {display:block;font-size:10px;opacity:.75;}
   #cloudSettings[hidden],#sharePanel[hidden],#backupLocalRow[hidden],#backupDiscordRow[hidden],#backupGithubRow[hidden] {display:none !important;}
   #editorArea { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; }
-  #editorBody { flex:1; min-height:0; min-width:0; display:flex; }
+  /* The locked-note cover is positioned inside the editor, not the entire
+     window: folder navigation and the title bar must remain usable. */
+  #editorBody { position:relative; isolation:isolate; overflow:hidden; flex:1; min-height:0; min-width:0; display:flex; }
   #editingTools { display:flex; align-items:center; gap:3px; padding:4px 7px; min-width:0; overflow-x:auto; flex-shrink:0;
     background:rgba(255,255,255,.13); border-bottom:1px solid var(--hair); scrollbar-width:thin; }
   #editingTools[hidden] { display:none; }
@@ -430,7 +432,7 @@
     <div style="opacity:.7;font-size:11.5px;line-height:1.45">Markdown: # title · **bold** · *italic* · ++underline++ · ~~strike~~ · - [ ] task · ==mark==<br>Ctrl+F search · Ctrl+E view/edit · Ctrl+Shift+P live Markdown · right-click editor for formatting and insertion · Ctrl+B / Ctrl+I<br>Drag tabs into folder headings to organize them, or out to pop them out. Drag a pop-out onto the main window to dock it. Pop-outs and their monitor/position return after restart. Pop-outs show only their note, without the sidebar. Highlight text and click Remind (or Ctrl+Shift+R) to create independent reminders. Delete individual reminders in the calendar or reminder panel. Double-click to switch between edit and preview.</div>
     <div class="feature-buttons"><button id="cleanStorage">Clear temporary app cache</button><span id="storageStatus" role="status"></span></div>
     <div class="feature-help">Storage: <code>%APPDATA%\Overnote</code>. On first launch, notes and settings are safely copied from the previous <code>sticky-notes</code> folder, which is left untouched. Chromium's caches are separate.</div>
-    <div style="opacity:.55;font-size:11px;text-align:right">Version 2.1.0 · MIT License</div>
+    <div style="opacity:.55;font-size:11px;text-align:right">Version 2.1.1 · MIT License</div>
     <div class="row"><button id="del">Delete this tab</button><button id="quit">Quit app</button></div>
   </div></div></div>
   <div id="passwordModal" hidden><form id="passwordCard"><strong id="passwordHeading">Note password</strong><label id="passwordInfo">Passwords are required to unlock encrypted notes.</label><input id="passwordValue" type="password" required minlength="6" autocomplete="off" placeholder="Enter password"><div id="passwordError" role="alert"></div><div class="feature-buttons"><button type="button" id="passwordCancel">Cancel</button><button type="submit" id="passwordSubmit">Continue</button></div></form></div>
